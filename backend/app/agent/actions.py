@@ -1,0 +1,99 @@
+"""
+Yojana Saathi - Agent Action Definitions and Schemas
+"""
+
+from enum import Enum
+from typing import Any, Dict, List, Optional
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class ActionType(str, Enum):
+    """
+    Allowlisted actions the Agent Controller can propose or execute.
+    """
+    ASK_QUESTION = "ASK_QUESTION"
+    REQUEST_CLARIFICATION = "REQUEST_CLARIFICATION"
+    RESOLVE_CONTRADICTION = "RESOLVE_CONTRADICTION"
+    RUN_ELIGIBILITY = "RUN_ELIGIBILITY"
+    EVALUATE_SCHEMES = "EVALUATE_SCHEMES"
+    SELECT_SCHEMES = "SELECT_SCHEMES"
+    CREATE_APPLICATIONS = "CREATE_APPLICATIONS"
+    SWITCH_ACTIVE_APPLICATION = "SWITCH_ACTIVE_APPLICATION"
+    REEVALUATE_SCHEMES = "REEVALUATE_SCHEMES"
+    REEVALUATE_CANDIDATES = "REEVALUATE_CANDIDATES"
+    REQUEST_DOCUMENT = "REQUEST_DOCUMENT"
+    PROCESS_DOCUMENT = "PROCESS_DOCUMENT"
+    VERIFY_DOCUMENT = "VERIFY_DOCUMENT"
+    RESOLVE_DOCUMENT_DISCREPANCY = "RESOLVE_DOCUMENT_DISCREPANCY"
+    CALCULATE_READINESS = "CALCULATE_READINESS"
+    READY_FOR_HANDOFF = "READY_FOR_HANDOFF"
+    ESCALATE_HUMAN = "ESCALATE_HUMAN"
+    NO_SUPPORTED_MATCH = "NO_SUPPORTED_MATCH"
+    FINISH = "FINISH"
+
+
+class ReasonCode(str, Enum):
+    """
+    Structured reason codes explaining why an action was selected.
+    No free-form or hidden chain-of-thought is exposed.
+    """
+    MAX_EXPECTED_NARROWING = "MAX_EXPECTED_NARROWING"
+    REQUIRED_FOR_REMAINING_SCHEME = "REQUIRED_FOR_REMAINING_SCHEME"
+    RESOLVE_CONTRADICTION = "RESOLVE_CONTRADICTION"
+    ELIGIBILITY_READY = "ELIGIBILITY_READY"
+    SCHEMES_EVALUATED = "SCHEMES_EVALUATED"
+    SCHEMES_SELECTED = "SCHEMES_SELECTED"
+    APPLICATION_CREATED = "APPLICATION_CREATED"
+    ACTIVE_APPLICATION_SWITCHED = "ACTIVE_APPLICATION_SWITCHED"
+    PROFILE_REEVALUATION_REQUIRED = "PROFILE_REEVALUATION_REQUIRED"
+    DOCUMENT_REQUIRED = "DOCUMENT_REQUIRED"
+    DOCUMENT_PENDING_PROCESSING = "DOCUMENT_PENDING_PROCESSING"
+    DOCUMENT_PROCESSED = "DOCUMENT_PROCESSED"
+    DOCUMENT_VERIFIED = "DOCUMENT_VERIFIED"
+    DOCUMENT_DISCREPANCY_DETECTED = "DOCUMENT_DISCREPANCY_DETECTED"
+    DISCREPANCY_RESOLVED = "DISCREPANCY_RESOLVED"
+    READINESS_RECALCULATED = "READINESS_RECALCULATED"
+    ALL_DOCUMENTS_VERIFIED = "ALL_DOCUMENTS_VERIFIED"
+    NO_ACTIONABLE_INFORMATION = "NO_ACTIONABLE_INFORMATION"
+    HUMAN_VERIFICATION_REQUIRED = "HUMAN_VERIFICATION_REQUIRED"
+    NO_SUPPORTED_MATCH = "NO_SUPPORTED_MATCH"
+    TERMINAL_STATE = "TERMINAL_STATE"
+    INVALID_ACTION_FALLBACK = "INVALID_ACTION_FALLBACK"
+    MAX_ITERATIONS_REACHED = "MAX_ITERATIONS_REACHED"
+    NO_PROGRESS_DETECTED = "NO_PROGRESS_DETECTED"
+
+
+
+class AgentAction(BaseModel):
+    """
+    Strict Pydantic schema for structured Agent actions proposed by Gemini / Policy.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    action: ActionType
+    field: Optional[str] = None
+    question: Optional[str] = None
+    tool: Optional[str] = None
+    arguments: Dict[str, Any] = Field(default_factory=dict)
+    reason_code: ReasonCode
+    notes: Optional[str] = None
+
+
+class AgentActivity(BaseModel):
+    """
+    Structured activity object for judge-visible observability and UI rendering.
+    Exposes deterministic state metrics, never hidden chain-of-thought.
+    """
+    model_config = ConfigDict(extra="allow")
+
+    iteration: int
+    stage: str
+    missing_information: List[str] = Field(default_factory=list)
+    candidate_schemes_count: int = 0
+    available_actions: List[str] = Field(default_factory=list)
+    selected_action: str
+    selected_field: Optional[str] = None
+    reason_code: str
+    tool_called: Optional[str] = None
+    state_fingerprint: str = ""
+    termination_reason: Optional[str] = None

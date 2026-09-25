@@ -1,0 +1,1345 @@
+[
+  {
+    "scheme_id": "pm_kisan_001",
+    "schema_version": "2.0",
+    "niche": "farmers",
+    "title_en": "Pradhan Mantri Kisan Samman Nidhi (PM-KISAN)",
+    "title_hi": "प्रधानमंत्री किसान सम्मान निधि",
+    "ministry": "Ministry of Agriculture & Farmers Welfare",
+    "target_audience": [
+      "farmer"
+    ],
+    "state_restriction": null,
+    "benefit": {
+      "summary_en": "Rs 6,000 per year, paid in 3 installments of Rs 2,000 every 4 months, direct bank transfer",
+      "breakdown": [
+        {
+          "condition": "default",
+          "amount_inr": 6000,
+          "unit": "per_year",
+          "installments": 3,
+          "installment_amount_inr": 2000,
+          "frequency": "every_4_months"
+        }
+      ],
+      "disputed": false
+    },
+    "eligibility": {
+      "critical_fields": [
+        "age",
+        "land_ownership",
+        "land_record_date",
+        "occupation",
+        "farmer_id_status"
+      ],
+      "conditions": [
+        {
+          "field": "age",
+          "op": "gte",
+          "value": 18
+        },
+        {
+          "field": "land_ownership",
+          "op": "eq",
+          "value": true,
+          "scope": "farmer_family (self, spouse, minor children)"
+        },
+        {
+          "field": "land_record_date",
+          "op": "lte",
+          "value": "2019-02-01",
+          "note": "Land acquired by purchase after Feb 1, 2019 is NOT eligible; succession/inheritance transfers remain allowed. Confirmed still enforced as of 2026 sources."
+        },
+        {
+          "field": "occupation",
+          "op": "not_in",
+          "value": [
+            "institutional_landholder",
+            "serving_or_retired_govt_employee_above_pension_threshold",
+            "income_tax_payer",
+            "professional_doctor_engineer_lawyer_ca_practicing"
+          ]
+        },
+        {
+          "field": "farmer_id_status",
+          "op": "eq",
+          "value": "registered",
+          "note": "Farmer ID (separate from Aadhaar) mandatory from 2026 onward to continue receiving installments."
+        }
+      ],
+      "notes": "Eligibility is per 'farmer family' (self, spouse, minor children) owning cultivable land per state land records."
+    },
+    "relationships": {
+      "stackable_with": [
+        "ts_rythu_bharosa_001"
+      ],
+      "mutually_exclusive_with": [],
+      "notes": "Confirmed stackable with Rythu Bharosa (Telangana state scheme) — an eligible farmer can receive both; the agent should present both, not as alternatives."
+    },
+    "required_documents": [
+      {
+        "doc_id": "aadhaar",
+        "name_en": "Aadhaar Card",
+        "name_hi": "आधार कार्ड",
+        "is_mandatory": true,
+        "source_office": "UIDAI / CSC"
+      },
+      {
+        "doc_id": "land_record",
+        "name_en": "Land Ownership Record (Khatauni / RoR)",
+        "name_hi": "भूलेख / खतौनी नकल",
+        "is_mandatory": true,
+        "source_office": "Tehsil / Revenue Dept (Bhulekh portal)"
+      },
+      {
+        "doc_id": "bank_passbook",
+        "name_en": "Aadhaar-seeded Bank Passbook",
+        "name_hi": "आधार लिंक बैंक पासबुक",
+        "is_mandatory": true,
+        "source_office": "Bank Branch"
+      },
+      {
+        "doc_id": "farmer_id",
+        "name_en": "Farmer ID (mandatory from 2026 onward)",
+        "is_mandatory": true,
+        "source_office": "State Agriculture Department portal"
+      }
+    ],
+    "official_portal_url": "https://pmkisan.gov.in",
+    "last_verified": "2026-09-12",
+    "disputed_fields": [],
+    "verify_before_demo": []
+  },
+  {
+    "scheme_id": "pm_kisan_maandhan_001",
+    "schema_version": "2.0",
+    "niche": "farmers",
+    "title_en": "Pradhan Mantri Kisan Maandhan Yojana (PM-KMY)",
+    "title_hi": "प्रधानमंत्री किसान मानधन योजना",
+    "ministry": "Ministry of Agriculture & Farmers Welfare",
+    "target_audience": [
+      "farmer"
+    ],
+    "state_restriction": null,
+    "benefit": {
+      "summary_en": "Guaranteed pension of Rs 3,000/month after age 60, via monthly contribution matched by government",
+      "breakdown": [
+        {
+          "condition": "after_age_60",
+          "amount_inr": 3000,
+          "unit": "per_month"
+        },
+        {
+          "condition": "spouse_survivor",
+          "amount_inr": 1500,
+          "unit": "per_month",
+          "note": "50% family pension if subscriber dies after age 60"
+        }
+      ],
+      "contribution_schedule": {
+        "min_inr": 55,
+        "max_inr": 200,
+        "unit": "per_month",
+        "note": "Confirmed 2026: Rs 55/month at entry age 18 up to Rs 200/month at entry age 40, scaled by entry age; government matches contribution 1:1; unchanged for 2026. LIC is the pension fund manager."
+      },
+      "disputed": false
+    },
+    "eligibility": {
+      "critical_fields": [
+        "age",
+        "land_ownership",
+        "land_acres",
+        "occupation"
+      ],
+      "conditions": [
+        {
+          "field": "age",
+          "op": "gte",
+          "value": 18
+        },
+        {
+          "field": "age",
+          "op": "lte",
+          "value": 40
+        },
+        {
+          "field": "land_ownership",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "field": "land_acres",
+          "op": "lte",
+          "value": 5.0,
+          "note": "Small/marginal farmer definition = up to 2 hectares (~5 acres)"
+        },
+        {
+          "field": "occupation",
+          "op": "not_in",
+          "value": [
+            "already_covered_under_pm_kisan_pension_or_other_statutory_pension",
+            "income_tax_payer"
+          ]
+        }
+      ],
+      "notes": ""
+    },
+    "relationships": {
+      "stackable_with": [],
+      "mutually_exclusive_with": [],
+      "notes": ""
+    },
+    "required_documents": [
+      {
+        "doc_id": "aadhaar",
+        "name_en": "Aadhaar Card",
+        "is_mandatory": true,
+        "source_office": "UIDAI / CSC"
+      },
+      {
+        "doc_id": "land_record",
+        "name_en": "Land Ownership Record",
+        "is_mandatory": true,
+        "source_office": "Tehsil / Revenue Dept"
+      },
+      {
+        "doc_id": "bank_passbook",
+        "name_en": "Bank Passbook with IFSC",
+        "is_mandatory": true,
+        "source_office": "Bank Branch"
+      },
+      {
+        "doc_id": "age_proof",
+        "name_en": "Age Proof",
+        "is_mandatory": true,
+        "source_office": "Any valid govt ID"
+      }
+    ],
+    "official_portal_url": "https://pmkmy.gov.in",
+    "last_verified": "2026-09-12",
+    "disputed_fields": [],
+    "verify_before_demo": []
+  },
+  {
+    "scheme_id": "pmfby_001",
+    "schema_version": "2.0",
+    "niche": "farmers",
+    "title_en": "Pradhan Mantri Fasal Bima Yojana (PMFBY)",
+    "title_hi": "प्रधानमंत्री फसल बीमा योजना",
+    "ministry": "Ministry of Agriculture & Farmers Welfare",
+    "target_audience": [
+      "farmer"
+    ],
+    "state_restriction": null,
+    "benefit": {
+      "summary_en": "Crop insurance covering yield loss from natural calamities, pests, disease; farmer pays a small subsidized premium",
+      "breakdown": [
+        {
+          "item": "premium_rate_pct",
+          "season": "kharif",
+          "value": 2
+        },
+        {
+          "item": "premium_rate_pct",
+          "season": "rabi",
+          "value": 1.5
+        },
+        {
+          "item": "premium_rate_pct",
+          "crop_type": "commercial_or_horticultural",
+          "value": 5
+        }
+      ],
+      "disputed": false
+    },
+    "eligibility": {
+      "critical_fields": [
+        "state",
+        "cultivates_notified_crop",
+        "crop_season",
+        "land_or_tenancy_status"
+      ],
+      "conditions": [
+        {
+          "field": "cultivates_notified_crop",
+          "op": "eq",
+          "value": true,
+          "note": "Must be a notified crop in a notified area for that season"
+        },
+        {
+          "field": "land_or_tenancy_status",
+          "op": "in",
+          "value": [
+            "landowner",
+            "tenant_farmer",
+            "sharecropper"
+          ]
+        },
+        {
+          "field": "enrollment_type",
+          "op": "eq",
+          "value": "voluntary",
+          "note": "Voluntary enrollment since Kharif 2020"
+        },
+        {
+          "field": "state",
+          "op": "eq",
+          "value": "Telangana",
+          "applies_only_if": "user_state == Telangana",
+          "note": "TELANGANA STATUS: historically opted out of PMFBY, but a July 2026 source lists Telangana among currently-participating states for Kharif 2026, and PIB confirms PMFBY active in 25 states/UTs nationally as of Kharif 2026 — appears to have rejoined. This has flipped before and could flip again."
+        }
+      ],
+      "notes": "Covers both landowning and tenant/sharecropper farmers."
+    },
+    "relationships": {
+      "stackable_with": [],
+      "mutually_exclusive_with": [],
+      "notes": ""
+    },
+    "required_documents": [
+      {
+        "doc_id": "aadhaar",
+        "name_en": "Aadhaar Card",
+        "is_mandatory": true,
+        "source_office": "UIDAI / CSC"
+      },
+      {
+        "doc_id": "land_record_or_tenancy_proof",
+        "name_en": "Land Record or Tenancy/Cultivation Agreement",
+        "is_mandatory": true,
+        "source_office": "Tehsil / Panchayat"
+      },
+      {
+        "doc_id": "bank_passbook",
+        "name_en": "Bank Passbook",
+        "is_mandatory": true,
+        "source_office": "Bank Branch"
+      },
+      {
+        "doc_id": "sowing_declaration",
+        "name_en": "Sowing Certificate/Declaration",
+        "is_mandatory": true,
+        "source_office": "Village Patwari / Agriculture Officer"
+      }
+    ],
+    "official_portal_url": "https://pmfby.gov.in",
+    "last_verified": "2026-09-12",
+    "disputed_fields": [
+      "telangana_participation_status"
+    ],
+    "verify_before_demo": [
+      "final same-week confirmation that Telangana's PMFBY participation hasn't changed again"
+    ]
+  },
+  {
+    "scheme_id": "kcc_001",
+    "schema_version": "2.0",
+    "niche": "farmers",
+    "title_en": "Kisan Credit Card (KCC)",
+    "title_hi": "किसान क्रेडिट कार्ड",
+    "ministry": "Ministry of Agriculture & Farmers Welfare / RBI-NABARD",
+    "target_audience": [
+      "farmer"
+    ],
+    "state_restriction": null,
+    "benefit": {
+      "summary_en": "Short-term credit at subsidized interest rate for crop and allied agricultural needs",
+      "breakdown": [
+        {
+          "item": "base_lending_rate_pct",
+          "value": 7
+        },
+        {
+          "item": "effective_rate_with_incentive_pct",
+          "value": 4,
+          "components": {
+            "govt_interest_subvention_pct": 2,
+            "prompt_repayment_incentive_pct": 3
+          },
+          "note": "Only with timely repayment"
+        },
+        {
+          "item": "subvention_ceiling_inr",
+          "value": 300000,
+          "disputed_alt_value_inr": 500000,
+          "disputed": true,
+          "note": "One source claims the ceiling was raised to Rs 5 lakh in 2026 — NOT consistently confirmed across sources; do not state the Rs 5 lakh figure on stage."
+        }
+      ],
+      "disputed": true,
+      "disputed_note": "Subvention ceiling: Rs 3 lakh confirmed across most 2026 sources vs one unconfirmed Rs 5 lakh claim."
+    },
+    "eligibility": {
+      "critical_fields": [
+        "age",
+        "occupation_type"
+      ],
+      "conditions": [
+        {
+          "field": "age",
+          "op": "gte",
+          "value": 18
+        },
+        {
+          "field": "age",
+          "op": "lte",
+          "value": 75
+        },
+        {
+          "field": "occupation_type",
+          "op": "in",
+          "value": [
+            "landowning_farmer",
+            "tenant_farmer",
+            "oral_lessee",
+            "dairy_or_fishery_worker",
+            "shg_or_jlg_member"
+          ]
+        },
+        {
+          "field": "age",
+          "op": "gt",
+          "value": 60,
+          "then_requires": "co_borrower_legal_heir",
+          "note": "A co-borrower (legal heir) is required for applicants above age 60"
+        }
+      ],
+      "notes": ""
+    },
+    "relationships": {
+      "stackable_with": [],
+      "mutually_exclusive_with": [],
+      "notes": ""
+    },
+    "required_documents": [
+      {
+        "doc_id": "aadhaar",
+        "name_en": "Aadhaar Card",
+        "is_mandatory": true,
+        "source_office": "UIDAI / CSC"
+      },
+      {
+        "doc_id": "land_record_or_tenancy_proof",
+        "name_en": "Land Record or Tenancy Proof",
+        "is_mandatory": true,
+        "source_office": "Tehsil / Panchayat"
+      },
+      {
+        "doc_id": "passport_photo",
+        "name_en": "Passport-size Photograph",
+        "is_mandatory": true,
+        "source_office": "Local photo studio"
+      }
+    ],
+    "official_portal_url": "https://www.myscheme.gov.in/schemes/kcc",
+    "last_verified": "2026-09-12",
+    "disputed_fields": [
+      "subvention_ceiling_inr"
+    ],
+    "verify_before_demo": []
+  },
+  {
+    "scheme_id": "soil_health_card_001",
+    "schema_version": "2.0",
+    "niche": "farmers",
+    "title_en": "Soil Health Card Scheme",
+    "title_hi": "मृदा स्वास्थ्य कार्ड योजना",
+    "ministry": "Ministry of Agriculture & Farmers Welfare",
+    "target_audience": [
+      "farmer"
+    ],
+    "state_restriction": null,
+    "benefit": {
+      "summary_en": "Free soil testing with crop-wise nutrient and fertilizer recommendations",
+      "breakdown": [
+        {
+          "item": "testing_cycle_years",
+          "value_primary": 2,
+          "value_alt": 3,
+          "disputed": true,
+          "note": "Original scheme documentation and some sources say every 2 years; several current 2026-dated sources say every 3 years, possibly reflecting a policy change. Safe framing for demo: 'roughly every 2-3 years'."
+        }
+      ],
+      "disputed": true,
+      "disputed_note": "Testing cycle frequency is genuinely unclear (2 vs 3 years)."
+    },
+    "eligibility": {
+      "critical_fields": [
+        "cultivates_land"
+      ],
+      "conditions": [
+        {
+          "field": "cultivates_land",
+          "op": "eq",
+          "value": true
+        }
+      ],
+      "notes": "Open to any farmer cultivating land, no income or land-size cap — confirmed consistently."
+    },
+    "relationships": {
+      "stackable_with": [],
+      "mutually_exclusive_with": [],
+      "notes": ""
+    },
+    "required_documents": [
+      {
+        "doc_id": "aadhaar",
+        "name_en": "Aadhaar Card",
+        "is_mandatory": false,
+        "source_office": "UIDAI / CSC"
+      },
+      {
+        "doc_id": "land_record",
+        "name_en": "Land Record (for card registration)",
+        "is_mandatory": true,
+        "source_office": "Tehsil / Krishi Vigyan Kendra"
+      }
+    ],
+    "official_portal_url": "https://soilhealth.dac.gov.in",
+    "last_verified": "2026-09-12",
+    "disputed_fields": [
+      "testing_cycle_years"
+    ],
+    "verify_before_demo": []
+  },
+  {
+    "scheme_id": "pmmvy_001",
+    "schema_version": "2.0",
+    "niche": "women",
+    "title_en": "Pradhan Mantri Matru Vandana Yojana (PMMVY)",
+    "title_hi": "प्रधानमंत्री मातृ वंदना योजना",
+    "ministry": "Ministry of Women & Child Development",
+    "target_audience": [
+      "woman",
+      "pregnant_or_lactating"
+    ],
+    "state_restriction": null,
+    "benefit": {
+      "summary_en": "Cash support for a first living child, plus a one-time top-up if the second child is a girl",
+      "breakdown": [
+        {
+          "condition": "first_living_child",
+          "amount_inr": 5000,
+          "installments": [
+            {
+              "stage": "after_antenatal_checkup",
+              "amount_inr": 3000
+            },
+            {
+              "stage": "after_birth_registration_and_first_immunization_cycle",
+              "amount_inr": 2000
+            }
+          ]
+        },
+        {
+          "condition": "second_child_is_girl",
+          "amount_inr": 6000,
+          "unit": "one_time"
+        }
+      ],
+      "disputed": true,
+      "disputed_note": "Installment split structure has changed before and should be re-verified close to demo."
+    },
+    "eligibility": {
+      "critical_fields": [
+        "age",
+        "pregnancy_or_lactation_status",
+        "lmp_date",
+        "occupation",
+        "income_category"
+      ],
+      "conditions": [
+        {
+          "field": "age",
+          "op": "gte",
+          "value": 19
+        },
+        {
+          "field": "pregnancy_or_lactation_status",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "field": "registration_days_after_lmp",
+          "op": "lte",
+          "value": 150,
+          "note": "Registration must happen within 150 days of last menstrual period to get the full installment sequence"
+        },
+        {
+          "field": "occupation",
+          "op": "not_in",
+          "value": [
+            "central_or_state_govt_employee",
+            "already_receiving_similar_statutory_benefit"
+          ],
+          "exception": "anganwadi_or_asha_worker",
+          "note": "Anganwadi/ASHA workers remain eligible despite quasi-government role"
+        },
+        {
+          "field": "income_qualifying_condition",
+          "op": "any_of",
+          "value": [
+            {
+              "category": "sc_st"
+            },
+            {
+              "category": "bpl_ration_card"
+            },
+            {
+              "category": "mgnrega_or_eshram_or_pmjay_cardholder"
+            },
+            {
+              "field": "annual_family_income_inr",
+              "op": "lte",
+              "value": 800000
+            }
+          ],
+          "disputed": true,
+          "note": "GENUINELY CONFLICTING SOURCES as of 2026: some describe eligibility via meeting ANY ONE of several qualifying conditions (not a strict universal income ceiling); others state PMMVY applies 'irrespective of family income.' Present as 'covers SC/ST, BPL, or lower-income families meeting one of several qualifying conditions' — consistent across all sources checked. Do not state a single hard income number as fact."
+        }
+      ],
+      "notes": ""
+    },
+    "relationships": {
+      "stackable_with": [],
+      "mutually_exclusive_with": [],
+      "notes": ""
+    },
+    "required_documents": [
+      {
+        "doc_id": "aadhaar",
+        "name_en": "Aadhaar Card",
+        "is_mandatory": true,
+        "source_office": "UIDAI / CSC"
+      },
+      {
+        "doc_id": "mcp_card",
+        "name_en": "Mother and Child Protection (MCP) Card",
+        "is_mandatory": true,
+        "source_office": "Anganwadi Centre / Health Facility"
+      },
+      {
+        "doc_id": "bank_passbook",
+        "name_en": "Bank/Post Office Passbook",
+        "is_mandatory": true,
+        "source_office": "Bank Branch / Post Office"
+      },
+      {
+        "doc_id": "consent_form",
+        "name_en": "Signed Consent & Registration Form",
+        "is_mandatory": true,
+        "source_office": "Anganwadi Centre"
+      }
+    ],
+    "official_portal_url": "https://pmmvy.wcd.gov.in",
+    "last_verified": "2026-09-12",
+    "disputed_fields": [
+      "income_cap_enforcement",
+      "installment_split_structure"
+    ],
+    "verify_before_demo": [
+      "current income cap enforcement — some sources show it as a soft/optional criterion, not a hard cutoff",
+      "exact installment split, which has changed structure before"
+    ]
+  },
+  {
+    "scheme_id": "sukanya_samriddhi_001",
+    "schema_version": "2.0",
+    "niche": "women",
+    "title_en": "Sukanya Samriddhi Yojana (SSY)",
+    "title_hi": "सुकन्या समृद्धि योजना",
+    "ministry": "Ministry of Finance / Department of Posts",
+    "target_audience": [
+      "girl_child",
+      "parent_or_guardian"
+    ],
+    "state_restriction": null,
+    "benefit": {
+      "summary_en": "Long-term savings account for a girl child at 8.2% per annum, compounded annually; maturity at 21 years or marriage after 18",
+      "breakdown": [
+        {
+          "item": "interest_rate_pct_annum",
+          "value": 8.2,
+          "note": "Confirmed stable for 8 consecutive quarters since Jan 2024, verified Q1 FY2026-27"
+        }
+      ],
+      "disputed": false
+    },
+    "eligibility": {
+      "critical_fields": [
+        "girl_child_age",
+        "existing_ssy_accounts_count",
+        "guardian_relationship"
+      ],
+      "conditions": [
+        {
+          "field": "girl_child_age",
+          "op": "gte",
+          "value": 0
+        },
+        {
+          "field": "girl_child_age",
+          "op": "lte",
+          "value": 10
+        },
+        {
+          "field": "existing_ssy_accounts_count",
+          "op": "lte",
+          "value": 2,
+          "exception": "twins_or_triplets_in_second_birth",
+          "exception_value": 3
+        }
+      ],
+      "notes": "Account opened by parent/legal guardian in the name of a girl child under 10."
+    },
+    "relationships": {
+      "stackable_with": [],
+      "mutually_exclusive_with": [],
+      "notes": ""
+    },
+    "required_documents": [
+      {
+        "doc_id": "birth_certificate",
+        "name_en": "Girl Child's Birth Certificate",
+        "is_mandatory": true,
+        "source_office": "Municipal / Panchayat Office"
+      },
+      {
+        "doc_id": "aadhaar_guardian",
+        "name_en": "Guardian's Aadhaar Card",
+        "is_mandatory": true,
+        "source_office": "UIDAI / CSC"
+      },
+      {
+        "doc_id": "address_proof",
+        "name_en": "Address Proof",
+        "is_mandatory": true,
+        "source_office": "Any valid govt ID"
+      }
+    ],
+    "official_portal_url": "https://www.india.gov.in/spotlight/sukanya-samriddhi-yojana",
+    "last_verified": "2026-09-12",
+    "disputed_fields": [],
+    "verify_before_demo": []
+  },
+  {
+    "scheme_id": "ts_rythu_bharosa_001",
+    "schema_version": "2.0",
+    "niche": "farmers",
+    "title_en": "Rythu Bharosa (formerly Rythu Bandhu — Telangana State Scheme)",
+    "title_te": "రైతు భరోసా",
+    "ministry": "Government of Telangana — Department of Agriculture",
+    "target_audience": [
+      "farmer"
+    ],
+    "state_restriction": "Telangana",
+    "benefit": {
+      "summary_en": "Rs 12,000 per acre per year, paid in two equal installments for Kharif and Rabi seasons",
+      "breakdown": [
+        {
+          "item": "per_acre_per_year_inr",
+          "value": 12000,
+          "installments": 2,
+          "installment_amount_inr": 6000,
+          "seasons": [
+            "kharif",
+            "rabi"
+          ]
+        }
+      ],
+      "disputed": false
+    },
+    "eligibility": {
+      "critical_fields": [
+        "state",
+        "active_cultivation_status",
+        "occupation_type",
+        "land_verification_source"
+      ],
+      "conditions": [
+        {
+          "field": "state",
+          "op": "eq",
+          "value": "Telangana"
+        },
+        {
+          "field": "active_cultivation_status",
+          "op": "eq",
+          "value": true,
+          "note": "Unlike the earlier Rythu Bandhu scheme (no acreage ceiling, paid to non-cultivating landowners too), Rythu Bharosa restricts payment to actively cultivated land, verified via joint field surveys by Agriculture Extension Officers and Revenue Inspectors."
+        },
+        {
+          "field": "occupation_type",
+          "op": "in",
+          "value": [
+            "landowner",
+            "registered_tenant_farmer_with_lease_deed",
+            "joint_landowner"
+          ]
+        },
+        {
+          "field": "land_verification_source",
+          "op": "eq",
+          "value": "bhu_bharati_portal",
+          "note": "Bhu Bharati portal replaced the earlier Dharani system"
+        }
+      ],
+      "notes": "Rythu Bandhu was formally replaced by Rythu Bharosa on 26 January 2025 under the current state government. This is a real eligibility change, not just a rename."
+    },
+    "relationships": {
+      "stackable_with": [
+        "pm_kisan_001"
+      ],
+      "mutually_exclusive_with": [],
+      "notes": "CONFIRMED STACKABLE: PM-KISAN (central, Rs 6,000/year fixed) and Rythu Bharosa (state, Rs 12,000/acre/year) are independent and can be received simultaneously by the same farmer — this is NOT an either/or choice. The matching engine should show BOTH as eligible when criteria for both are met, not present them as alternatives."
+    },
+    "required_documents": [
+      {
+        "doc_id": "aadhaar",
+        "name_en": "Aadhaar Card",
+        "is_mandatory": true,
+        "source_office": "UIDAI / CSC"
+      },
+      {
+        "doc_id": "land_record",
+        "name_en": "Land Record (Bhu Bharati / Pattadar Passbook, or registered tenancy lease deed)",
+        "is_mandatory": true,
+        "source_office": "Tehsil / Revenue Dept"
+      },
+      {
+        "doc_id": "bank_passbook",
+        "name_en": "Aadhaar-linked Bank Passbook",
+        "is_mandatory": true,
+        "source_office": "Bank Branch"
+      }
+    ],
+    "official_portal_url": "https://rythubharosa.telangana.gov.in",
+    "last_verified": "2026-09-12",
+    "disputed_fields": [],
+    "verify_before_demo": [
+      "confirm the scheme name has not changed again closer to the hackathon date, given this has changed once already in the last two years"
+    ]
+  },
+  {
+    "scheme_id": "ts_rythu_bima_001",
+    "schema_version": "2.0",
+    "niche": "farmers",
+    "title_en": "Rythu Bima (Telangana State Scheme)",
+    "title_te": "రైతు బీమా",
+    "ministry": "Government of Telangana — Department of Agriculture",
+    "target_audience": [
+      "farmer"
+    ],
+    "state_restriction": "Telangana",
+    "benefit": {
+      "summary_en": "Rs 5 lakh life insurance cover for enrolled farmers, with the state paying the full annual premium (~Rs 2,500/farmer/year)",
+      "breakdown": [
+        {
+          "item": "life_cover_inr",
+          "value": 500000
+        },
+        {
+          "item": "annual_premium_inr",
+          "value": 2500,
+          "note": "Fully paid by Telangana government"
+        }
+      ],
+      "disputed": false
+    },
+    "eligibility": {
+      "critical_fields": [
+        "age",
+        "land_ownership",
+        "state"
+      ],
+      "conditions": [
+        {
+          "field": "age",
+          "op": "gte",
+          "value": 18
+        },
+        {
+          "field": "age",
+          "op": "lte",
+          "value": 59,
+          "note": "Farmers over 60 are not eligible to newly enroll"
+        },
+        {
+          "field": "land_ownership",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "field": "state",
+          "op": "eq",
+          "value": "Telangana"
+        }
+      ],
+      "notes": "Confirmed 2026: automatic enrollment for landowner farmers already registered under Rythu Bandhu/Rythu Bharosa (same database) — no separate application needed for most eligible farmers."
+    },
+    "relationships": {
+      "stackable_with": [],
+      "mutually_exclusive_with": [],
+      "notes": ""
+    },
+    "process_notes": {
+      "auto_enrollment": "Most already-registered Rythu Bharosa landowners are auto-enrolled, no separate application needed.",
+      "claim_deadline_months_after_death": 6,
+      "claim_payout_target_days": 10
+    },
+    "required_documents": [
+      {
+        "doc_id": "aadhaar",
+        "name_en": "Aadhaar Card",
+        "is_mandatory": true,
+        "source_office": "UIDAI / CSC"
+      },
+      {
+        "doc_id": "land_record",
+        "name_en": "Land Ownership Record",
+        "is_mandatory": true,
+        "source_office": "Tehsil / Revenue Dept"
+      },
+      {
+        "doc_id": "nominee_details",
+        "name_en": "Nominee Details/ID",
+        "is_mandatory": true,
+        "source_office": "Self-declared, verified at enrollment"
+      }
+    ],
+    "official_portal_url": "https://schemeatlas.com/in/telangana",
+    "last_verified": "2026-09-12",
+    "disputed_fields": [],
+    "verify_before_demo": []
+  },
+  {
+    "scheme_id": "ts_kalyana_lakshmi_001",
+    "schema_version": "2.0",
+    "niche": "women",
+    "title_en": "Kalyana Lakshmi / Shaadi Mubarak (Telangana State Scheme)",
+    "title_te": "కళ్యాణ లక్ష్మి",
+    "ministry": "Government of Telangana — Women Development & Child Welfare Department",
+    "target_audience": [
+      "woman",
+      "unmarried_bride"
+    ],
+    "state_restriction": "Telangana",
+    "program_variants": {
+      "kalyana_lakshmi": "SC/ST/BC/EBC Hindu brides",
+      "shaadi_mubarak": "Brides from notified minority communities (Muslim, Christian, Sikh, Buddhist, Parsi, Jain)",
+      "note": "Same amount, same rules, different department depending on community."
+    },
+    "benefit": {
+      "summary_en": "One-time marriage-assistance grant, paid to the bride's mother's bank account",
+      "breakdown": [
+        {
+          "condition": "default",
+          "amount_inr": 100116
+        },
+        {
+          "condition": "bride_has_certified_disability",
+          "amount_inr": 125145
+        }
+      ],
+      "disputed": false
+    },
+    "eligibility": {
+      "critical_fields": [
+        "gender",
+        "age",
+        "groom_age",
+        "marriage_status",
+        "community",
+        "residence_type",
+        "annual_family_income_inr",
+        "application_date_relative_to_marriage"
+      ],
+      "conditions": [
+        {
+          "field": "gender",
+          "op": "eq",
+          "value": "female"
+        },
+        {
+          "field": "age",
+          "op": "gte",
+          "value": 18,
+          "note": "Bride's age"
+        },
+        {
+          "field": "groom_age",
+          "op": "gte",
+          "value": 21
+        },
+        {
+          "field": "marriage_status",
+          "op": "in",
+          "value": [
+            "pending",
+            "recently_completed"
+          ]
+        },
+        {
+          "field": "occupation",
+          "op": "not_in",
+          "value": [
+            "govt_employee_in_family",
+            "income_tax_payer_in_family"
+          ]
+        },
+        {
+          "field": "annual_family_income_inr",
+          "op": "lte",
+          "value": 200000,
+          "scope": "sc_st_or_urban_bc_ebc"
+        },
+        {
+          "field": "annual_family_income_inr",
+          "op": "lte",
+          "value": 150000,
+          "scope": "rural_bc_ebc",
+          "note": "CONFIRMED: this rural/urban split is a real distinction, not a simplification. Do not apply the flat Rs 2 lakh cap to rural BC/EBC families."
+        },
+        {
+          "field": "application_days_after_marriage",
+          "op": "lte",
+          "value": null,
+          "disputed": true,
+          "conflicting_values_months": [
+            3,
+            6
+          ],
+          "note": "Application window is inconsistently reported as 3 vs 6 months from the marriage date across sources — confirm exact current deadline before demo, as a late application is routinely rejected."
+        }
+      ],
+      "notes": ""
+    },
+    "relationships": {
+      "stackable_with": [],
+      "mutually_exclusive_with": [],
+      "notes": ""
+    },
+    "required_documents": [
+      {
+        "doc_id": "aadhaar",
+        "name_en": "Bride's Aadhaar Card",
+        "is_mandatory": true,
+        "source_office": "UIDAI / CSC"
+      },
+      {
+        "doc_id": "caste_community_certificate",
+        "name_en": "Caste/Community Certificate",
+        "is_mandatory": true,
+        "source_office": "Tehsildar Office"
+      },
+      {
+        "doc_id": "income_certificate",
+        "name_en": "Family Income Certificate",
+        "is_mandatory": true,
+        "source_office": "Tehsildar Office"
+      },
+      {
+        "doc_id": "marriage_proof",
+        "name_en": "Marriage Invitation/Registration Proof",
+        "is_mandatory": true,
+        "source_office": "Registrar / Self-declared"
+      },
+      {
+        "doc_id": "bank_passbook",
+        "name_en": "Bride's Bank Passbook",
+        "is_mandatory": true,
+        "source_office": "Bank Branch"
+      }
+    ],
+    "official_portal_url": "https://schemeatlas.com/in/telangana",
+    "last_verified": "2026-09-12",
+    "disputed_fields": [
+      "application_window_months"
+    ],
+    "verify_before_demo": [
+      "exact current application deadline (3 vs 6 months from marriage — sources conflict)"
+    ]
+  },
+  {
+    "scheme_id": "ts_kcr_kit_001",
+    "schema_version": "2.0",
+    "niche": "women",
+    "title_en": "MCH Kit (formerly KCR Kit / Rajanna Kit — Telangana State Scheme)",
+    "title_te": "కేసీఆర్ కిట్",
+    "ministry": "Government of Telangana — Health, Medical & Family Welfare Department",
+    "target_audience": [
+      "woman",
+      "pregnant_or_lactating"
+    ],
+    "state_restriction": "Telangana",
+    "naming_note": {
+      "current_official_name": "MCH Kit",
+      "legacy_names": [
+        "KCR Kit",
+        "Rajanna Kit"
+      ],
+      "guidance": "Use 'MCH Kit' on stage; older names are still widely searched/recognized and may be mentioned parenthetically."
+    },
+    "benefit": {
+      "summary_en": "Cash payment plus a maternal/newborn care kit (~16 items), paid via DBT in installments",
+      "breakdown": [
+        {
+          "condition": "baby_boy",
+          "amount_inr": 12000
+        },
+        {
+          "condition": "baby_girl",
+          "amount_inr": 13000
+        },
+        {
+          "item": "maternal_newborn_care_kit",
+          "item_count": 16
+        }
+      ],
+      "disputed": false
+    },
+    "eligibility": {
+      "critical_fields": [
+        "pregnancy_or_lactation_status",
+        "delivery_location_type",
+        "state"
+      ],
+      "conditions": [
+        {
+          "field": "gender",
+          "op": "eq",
+          "value": "female"
+        },
+        {
+          "field": "pregnancy_or_lactation_status",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "field": "delivery_location_type",
+          "op": "eq",
+          "value": "government_hospital_or_phc",
+          "note": "Private hospital deliveries are NOT covered"
+        },
+        {
+          "field": "state",
+          "op": "eq",
+          "value": "Telangana"
+        }
+      ],
+      "notes": "No income restriction found in sources checked."
+    },
+    "relationships": {
+      "stackable_with": [],
+      "mutually_exclusive_with": [],
+      "notes": ""
+    },
+    "required_documents": [
+      {
+        "doc_id": "aadhaar",
+        "name_en": "Mother's Aadhaar Card",
+        "is_mandatory": true,
+        "source_office": "UIDAI / CSC"
+      },
+      {
+        "doc_id": "bank_passbook",
+        "name_en": "Aadhaar-linked Bank Passbook",
+        "is_mandatory": true,
+        "source_office": "Bank Branch"
+      },
+      {
+        "doc_id": "hospital_registration",
+        "name_en": "Government Hospital Registration/ANC Card",
+        "is_mandatory": true,
+        "source_office": "Government Hospital"
+      }
+    ],
+    "official_portal_url": "https://mchkit.telangana.gov.in",
+    "last_verified": "2026-09-12",
+    "disputed_fields": [],
+    "verify_before_demo": []
+  },
+  {
+    "scheme_id": "ts_aasara_pension_001",
+    "schema_version": "2.0",
+    "niche": "women",
+    "title_en": "Cheyutha Pension (formerly Aasara Pension — Telangana State Scheme)",
+    "title_te": "ఆసరా పెన్షన్",
+    "ministry": "Government of Telangana — Social Welfare Department",
+    "target_audience": [
+      "widow",
+      "elderly",
+      "disabled"
+    ],
+    "state_restriction": "Telangana",
+    "naming_note": {
+      "current_official_name": "Cheyutha Pension",
+      "legacy_name": "Aasara Pension",
+      "guidance": "Scheme was renamed from 'Aasara' to 'Cheyutha' under the current state government — use 'Cheyutha Pension' as the current name, mention 'Aasara' parenthetically since it's still widely searched."
+    },
+    "benefit": {
+      "summary_en": "Monthly pension, amount varies by category",
+      "breakdown": [
+        {
+          "condition": "default_most_categories",
+          "amount_inr": 4000,
+          "unit": "per_month",
+          "categories": [
+            "senior_citizen_57_plus",
+            "widow",
+            "weaver",
+            "toddy_tapper",
+            "aids_dialysis_filaria_patient"
+          ],
+          "note": "Confirmed as of the Feb 2025 rate increase; multiple sources explicitly flag older figures (Rs 200-2,016) as outdated."
+        },
+        {
+          "condition": "disability_category",
+          "amount_inr": null,
+          "disputed": true,
+          "conflicting_values_inr": [
+            3016,
+            6000
+          ],
+          "note": "Genuinely disputed even after a second research pass. Do not state a specific disability figure on stage — say 'a higher amount for the disability category, exact figure to be confirmed' instead."
+        }
+      ],
+      "disputed": true,
+      "disputed_note": "Disability-category amount is unresolved between Rs 3,016 and Rs 6,000."
+    },
+    "eligibility": {
+      "critical_fields": [
+        "category",
+        "is_bpl",
+        "state",
+        "widow_status_if_applicable"
+      ],
+      "conditions": [
+        {
+          "field": "is_bpl",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "field": "category",
+          "op": "in",
+          "value": [
+            "senior_citizen_57_plus",
+            "widow",
+            "disabled",
+            "single_woman",
+            "weaver",
+            "toddy_tapper",
+            "beedi_worker",
+            "aids_dialysis_filaria_patient"
+          ],
+          "note": "Age for old-age category lowered to 57+ (was 65)."
+        },
+        {
+          "field": "widow_status",
+          "op": "eq",
+          "value": true,
+          "applies_only_if": "category == widow"
+        },
+        {
+          "field": "state",
+          "op": "eq",
+          "value": "Telangana"
+        }
+      ],
+      "notes": ""
+    },
+    "relationships": {
+      "stackable_with": [],
+      "mutually_exclusive_with": [],
+      "notes": ""
+    },
+    "required_documents": [
+      {
+        "doc_id": "aadhaar",
+        "name_en": "Aadhaar Card",
+        "is_mandatory": true,
+        "source_office": "UIDAI / CSC"
+      },
+      {
+        "doc_id": "income_certificate",
+        "name_en": "BPL/Income Certificate",
+        "is_mandatory": true,
+        "source_office": "Tehsildar Office"
+      },
+      {
+        "doc_id": "death_certificate_spouse",
+        "name_en": "Husband's Death Certificate (widow category only)",
+        "is_mandatory": false,
+        "source_office": "Municipal Office"
+      }
+    ],
+    "official_portal_url": "https://cheyutha.telangana.gov.in",
+    "last_verified": "2026-09-12",
+    "disputed_fields": [
+      "disability_category_amount_inr",
+      "category_count_discrepancy"
+    ],
+    "verify_before_demo": [
+      "exact disability-category pension amount — genuinely disputed between Rs 3,016 and Rs 6,000 across recent sources",
+      "the old dataset's notes claimed '10 categories' but only 8 were ever named (senior citizens, widows, disabled, single women, weavers, toddy tappers, beedi workers, AIDS/dialysis/filaria patients) — confirm whether AIDS/dialysis/filaria are counted as 3 separate categories (making 10) or whether the '10' figure itself is wrong"
+    ]
+  },
+  {
+    "scheme_id": "sakhi_osc_001",
+    "schema_version": "2.0",
+    "niche": "women",
+    "title_en": "One Stop Centre Scheme (Sakhi)",
+    "title_hi": "सखी वन स्टॉप सेंटर योजना",
+    "ministry": "Ministry of Women & Child Development",
+    "target_audience": [
+      "woman_facing_violence_or_abuse"
+    ],
+    "state_restriction": null,
+    "benefit": {
+      "summary_en": "Free integrated support: medical aid, police assistance, legal aid, psychosocial counselling, and temporary shelter under one roof",
+      "breakdown": [],
+      "disputed": false
+    },
+    "eligibility": {
+      "critical_fields": [
+        "gender",
+        "facing_violence_or_abuse_flag"
+      ],
+      "conditions": [
+        {
+          "field": "gender",
+          "op": "eq",
+          "value": "female"
+        },
+        {
+          "field": "facing_violence_or_abuse_flag",
+          "op": "eq",
+          "value": true
+        }
+      ],
+      "notes": "Open to any woman facing violence — no income, caste, or documentation eligibility barrier, confirmed."
+    },
+    "relationships": {
+      "stackable_with": [],
+      "mutually_exclusive_with": [],
+      "notes": ""
+    },
+    "access_note": {
+      "helpline": "181",
+      "note": "Toll-free, 24/7. Direct the user to call 181 rather than requiring a nearest-center lookup — it routes to the correct district center automatically. Confirmed: at least one Sakhi OSC per district (33 districts in Telangana; ~960+ operational nationally). National scheme under Ministry of Women & Child Development (Mission Shakti/Nirbhaya Fund), implemented at state level — not Telangana-specific, safe to present in other states too if the dataset expands."
+    },
+    "required_documents": [
+      {
+        "doc_id": "none_mandatory",
+        "name_en": "No mandatory documents to access initial support",
+        "is_mandatory": false,
+        "source_office": "Nearest Sakhi One Stop Centre"
+      }
+    ],
+    "official_portal_url": "https://www.myscheme.gov.in/schemes/osc",
+    "last_verified": "2026-09-12",
+    "disputed_fields": [],
+    "verify_before_demo": []
+  }
+]

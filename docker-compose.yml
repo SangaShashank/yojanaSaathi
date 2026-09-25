@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: yojana_saathi_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-yojana_saathi}
+      POSTGRES_USER: ${POSTGRES_USER:-yojana_saathi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yojana_saathi_secure_pw}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - yojana_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-yojana_saathi} -d ${POSTGRES_DB:-yojana_saathi}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  yojana_pgdata:
+    driver: local
