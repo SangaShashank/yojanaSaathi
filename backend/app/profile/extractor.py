@@ -19,6 +19,7 @@ import os
 import re
 from typing import Any, Dict, List, Optional
 from backend.app.profile.normalizer import (
+    GENDER_MAP,
     KNOWN_STATES,
     OCCUPATION_MAP,
     normalize_age,
@@ -219,31 +220,164 @@ class ProfileExtractor:
                         changes["annual_income_inr"] = inc_val
                         explicitly_stated.append("annual_income_inr")
 
-        # 5. Age extraction
+        # Identify if message refers to another person (child, spouse, relative)
+        third_person_pattern = r"\b(?:daughter|son|girl\s*child|child(?:ren)?|kids?|husband|wife|spouse|father|mother|sister|brother)\b"
+        has_third_person = bool(re.search(third_person_pattern, lower))
+
+        # Check for girl child age specifically (e.g. "age of my girl child is 14", "my girl child is 14")
+        girl_age_match = re.search(r"\b(?:girl\s*child(?:'s)?(?:\s+age)?|daughter(?:'s)?(?:\s+age)?)\s*(?:is|:)?\s*(\d{1,2})\b", lower)
+        if not girl_age_match:
+            girl_age_match = re.search(r"\b(?:age\s+of\s+my\s+(?:girl\s*child|daughter))\s*(?:is|:)?\s*(\d{1,2})\b", lower)
+        if girl_age_match and "girl_child_age" not in changes:
+            g_age, is_g_ambig = normalize_age(girl_age_match.group(1))
+            if not is_g_ambig and g_age is not None:
+                changes["girl_child_age"] = g_age
+                explicitly_stated.append("girl_child_age")
+
+        # 5. Citizen Age extraction
         # e.g., "I am 42", "age is 45", "my age is 45", "42 years old", "am 42,"
-        age_match = re.search(
-            r"\b(?:(?:my\s+)?age\s*(?:is|:)?|i am|am)\s*(\d{1,3})\b(?!\s*(?:acres?|ac|lakh|rs|k|ekad))",
-            lower,
-        )
-        if age_match:
-            age_val, is_ambig = normalize_age(age_match.group(1))
-            if not is_ambig and age_val is not None:
-                changes["age"] = age_val
-                explicitly_stated.append("age")
-        else:
-            age_explicit = re.search(r"(\d{1,3})\s*(?:years? old|yrs? old)", lower)
-            if age_explicit:
-                age_val, is_ambig = normalize_age(age_explicit.group(1))
+        # Guard: Do not attribute third-person age (e.g., "my daughter is 14", "my husband is 42") to the citizen!
+        if not has_third_person or re.search(r"\b(?:i\s+am|i'm|my\s+age)\s*(\d{1,3})\b", lower):
+            age_match = re.search(
+                r"\b(?:(?:my\s+)?age\s*(?:is|:)?|i am|i'm|am)\s*(\d{1,3})\b(?!\s*(?:acres?|ac|lakh|rs|k|ekad))",
+                lower,
+            )
+            if age_match:
+                age_val, is_ambig = normalize_age(age_match.group(1))
                 if not is_ambig and age_val is not None:
                     changes["age"] = age_val
                     explicitly_stated.append("age")
+            elif not has_third_person:
+                age_explicit = re.search(r"(\d{1,3})\s*(?:years? old|yrs? old)", lower)
+                if age_explicit:
+                    age_val, is_ambig = normalize_age(age_explicit.group(1))
+                    if not is_ambig and age_val is not None:
+                        changes["age"] = age_val
+                        explicitly_stated.append("age")
 
         # 6. Ambiguous standalone number statements: "I have five", "I have 5" (no unit specified)
         vague_have = re.search(r"\b(?:i have|have)\s+(?:five|5|four|4|three|3|two|2|ten|10)\b(?!\s*(?:acres?|ac|lakh|rs|years))", lower)
         if vague_have and "land_holding_acres" not in changes and "annual_income_inr" not in changes and "age" not in changes:
             ambiguous_fields.append("land_holding_acres")
 
-        # 7. Contextual resolution: If user is answering a direct question
+        # 7. Gender extraction
+        # Guard: Do NOT attribute another person's gender to the citizen (e.g. "my girl child is 14", "my daughter", "my husband")
+        if "gender" not in changes:
+            has_first_person_gender = bool(re.search(r"\b(?:i\s+am|i'm|myself)\s+(?:a\s+)?(?:female|male|woman|man|girl|boy|transgender|other)\b", lower))
+            is_direct_single_word_gender = bool(re.fullmatch(r"\s*(?:male|female|m|f|man|woman|transgender|other)[.,!]?\s*", lower))
+
+            if has_first_person_gender or is_direct_single_word_gender or not has_third_person:
+                # If message contains third-person references, do not match 'girl' or 'boy' or third-person mentions as citizen gender
+                filtered_gender_keys = list(GENDER_MAP.keys())
+                if has_third_person:
+                    filtered_gender_keys = [k for k in filtered_gender_keys if k not in ("girl", "boy")]
+
+                for gender_key in filtered_gender_keys:
+                    gender_val = GENDER_MAP[gender_key]
+                    if re.search(rf"\b{re.escape(gender_key)}\b", lower):
+                        # Extra check: 'girl' in 'girl child' must not trigger gender
+                        if gender_key == "girl" and "girl child" in lower:
+                            continue
+                        changes["gender"] = gender_val
+                        explicitly_stated.append("gender")
+                        break
+
+        # 8. Caste category extraction
+        if "category" not in changes:
+            caste_patterns = {
+                r"\b(?:my category is |i am |i belong to )?(?:scheduled caste|sc)\b": "SC",
+                r"\b(?:my category is |i am |i belong to )?(?:scheduled tribe|st)\b": "ST",
+                r"\b(?:my category is |i am |i belong to )?(?:obc|other backward class|bc)\b": "OBC",
+                r"\b(?:my category is |i am |i belong to )?(?:general|gen|unreserved)\b": "General",
+            }
+            for pat, caste_val in caste_patterns.items():
+                if re.search(pat, lower):
+                    changes["category"] = caste_val
+                    explicitly_stated.append("category")
+                    break
+
+        # 9. Land ownership (boolean) extraction
+        if "land_ownership" not in changes:
+            if re.search(r"\b(?:yes[,.]?\s*i\s*own|i\s*own\s*(?:cultivable\s*)?(?:agricultural\s*)?land|own\s*land|land\s*owner|i\s*have\s*(?:my\s*own\s*)?land)\b", lower):
+                changes["land_ownership"] = True
+                explicitly_stated.append("land_ownership")
+            elif re.search(r"\b(?:no[,.]?\s*(?:i\s*(?:am|do)\s*(?:not|n'?t)\s*own|tenant|landless)|i\s*(?:am|do)\s*(?:not|n'?t)\s*own\s*land|tenant\s*farmer|landless)\b", lower):
+                changes["land_ownership"] = False
+                explicitly_stated.append("land_ownership")
+
+        # 10. Cultivates land (boolean) extraction
+        if "cultivates_land" not in changes:
+            if re.search(r"\b(?:yes[,.]?\s*i\s*(?:actively\s*)?cultivate|i\s*cultivate|i\s*do\s*(?:the\s*)?farming|actively\s*cultivat)", lower):
+                changes["cultivates_land"] = True
+                explicitly_stated.append("cultivates_land")
+            elif re.search(r"\b(?:no[,.]?\s*i\s*do\s*(?:not|n'?t)\s*cultivat|i\s*do\s*not\s*cultivat|don'?t\s*cultivat)", lower):
+                changes["cultivates_land"] = False
+                explicitly_stated.append("cultivates_land")
+
+        # 11. Residence type extraction
+        if "residence_type" not in changes:
+            if re.search(r"\b(?:rural|village|gram|gaon|panchayat|i\s*reside\s*in\s*a?\s*rural)", lower):
+                changes["residence_type"] = "rural"
+                explicitly_stated.append("residence_type")
+            elif re.search(r"\b(?:urban|city|town|municipality|nagar|i\s*reside\s*in\s*a?n?\s*urban)", lower):
+                changes["residence_type"] = "urban"
+                explicitly_stated.append("residence_type")
+
+        # 12. BPL status extraction (check denial first to avoid false positive on "do not have a BPL")
+        if "is_bpl" not in changes:
+            if re.search(r"(?:no\s*bpl|not\s*(?:a\s*)?bpl|no[,.]?\s*we\s*do\s*not\s*have|don'?t\s*have\s*(?:a\s*)?bpl|above\s*poverty\s*line|\bapl\b|not\s*have\s*(?:a\s*)?bpl)", lower):
+                changes["is_bpl"] = False
+                explicitly_stated.append("is_bpl")
+            elif re.search(r"\b(?:yes[,.]?\s*(?:my\s*family\s*)?(?:has\s*a?\s*)?bpl|bpl\s*card\s*holder|have\s*(?:a\s*)?bpl|i\s*am\s*bpl|below\s*poverty\s*line)", lower):
+                changes["is_bpl"] = True
+                explicitly_stated.append("is_bpl")
+
+        # 13. Farmer ID status extraction
+        if "farmer_id_status" not in changes:
+            if re.search(r"\b(?:yes[,.]?\s*i\s*have\s*(?:an?\s*)?(?:active\s*)?(?:registered\s*)?farmer\s*id|have\s*farmer\s*(?:id|card)|registered\s*farmer)\b", lower):
+                changes["farmer_id_status"] = "registered"
+                explicitly_stated.append("farmer_id_status")
+            elif re.search(r"\b(?:no[,.]?\s*i\s*(?:do\s*not|don'?t)\s*have\s*(?:a\s*)?farmer\s*id|no\s*farmer\s*(?:id|card))\b", lower):
+                changes["farmer_id_status"] = "not_registered"
+                explicitly_stated.append("farmer_id_status")
+
+        # 14. Co-borrower / legal heir extraction
+        if "co_borrower_legal_heir" not in changes:
+            if re.search(r"\b(?:yes[,.]?\s*i\s*have\s*(?:a\s*)?co.?borrower|have\s*(?:a\s*)?co.?borrower|have\s*(?:a\s*)?legal\s*heir)\b", lower):
+                changes["co_borrower_legal_heir"] = True
+                explicitly_stated.append("co_borrower_legal_heir")
+            elif re.search(r"\b(?:no[,.]?\s*i\s*(?:do\s*not|don'?t)\s*have\s*(?:a\s*)?co.?borrower|no\s*co.?borrower)\b", lower):
+                changes["co_borrower_legal_heir"] = False
+                explicitly_stated.append("co_borrower_legal_heir")
+
+        # 15. Marital status extraction
+        if "marriage_status" not in changes:
+            if re.search(r"\b(?:married|i\s*am\s*married)\b", lower) and not re.search(r"\b(?:unmarried|un-married|not\s*married)\b", lower):
+                changes["marriage_status"] = "married"
+                explicitly_stated.append("marriage_status")
+            elif re.search(r"\b(?:unmarried|un-married|not\s*married|single|bachelor|i\s*am\s*single)\b", lower):
+                changes["marriage_status"] = "unmarried"
+                explicitly_stated.append("marriage_status")
+            elif re.search(r"\b(?:widow|widowed)\b", lower):
+                changes["marriage_status"] = "widowed"
+                explicitly_stated.append("marriage_status")
+            elif re.search(r"\b(?:divorced|separated)\b", lower):
+                changes["marriage_status"] = "divorced"
+                explicitly_stated.append("marriage_status")
+
+        # 16. Widow status extraction
+        if "widow_status" not in changes:
+            if re.search(r"\b(?:i\s*am\s*(?:a\s*)?widow|widow|widowed)\b", lower):
+                changes["widow_status"] = True
+                explicitly_stated.append("widow_status")
+
+        # 17. Pregnancy/lactation status
+        if "pregnancy_or_lactation_status" not in changes:
+            if re.search(r"\b(?:pregnant|expecting|lactating|breastfeeding|nursing)\b", lower):
+                changes["pregnancy_or_lactation_status"] = True
+                explicitly_stated.append("pregnancy_or_lactation_status")
+
+        # 18. Contextual resolution: If user is answering a direct question
         if last_asked_field and last_asked_field not in changes:
             if last_asked_field in ["annual_income_inr", "annual_family_income_inr"]:
                 norm_val, is_ambig = normalize_income(text)
@@ -260,12 +394,24 @@ class ProfileExtractor:
                     changes[last_asked_field] = norm_val
                     explicitly_stated.append(last_asked_field)
             elif last_asked_field in ["age", "girl_child_age", "groom_age"]:
-                norm_val, is_ambig = normalize_age(text)
-                if is_ambig:
-                    ambiguous_fields.append(last_asked_field)
-                elif norm_val is not None:
-                    changes[last_asked_field] = norm_val
-                    explicitly_stated.append(last_asked_field)
+                # Guard: If asking citizen 'age' and user speaks about third-party, do not assign to citizen age
+                if last_asked_field == "age" and has_third_person and not re.search(r"\b(?:i\s+am|i'm|my\s+age)\b", lower):
+                    pass
+                else:
+                    norm_val, is_ambig = normalize_age(text)
+                    if is_ambig:
+                        ambiguous_fields.append(last_asked_field)
+                    elif norm_val is not None:
+                        changes[last_asked_field] = norm_val
+                        explicitly_stated.append(last_asked_field)
+            elif last_asked_field == "gender":
+                # Direct short-answer gender fallback if asked directly
+                if not has_third_person:
+                    for g_key, g_val in GENDER_MAP.items():
+                        if re.fullmatch(rf"\s*{re.escape(g_key)}[.,!]?\s*", lower):
+                            changes["gender"] = g_val
+                            explicitly_stated.append("gender")
+                            break
 
         return ProfileExtractionResult(
             changes=changes,

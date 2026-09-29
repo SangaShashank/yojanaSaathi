@@ -70,6 +70,15 @@ class DocumentRepository:
         return db.scalar(stmt)
 
     @classmethod
+    def find_processed_by_hash(cls, db: Session, sha256_hash: str) -> Optional[Document]:
+        """Finds any successfully processed document with matching content hash."""
+        stmt = select(Document).where(
+            Document.sha256_hash == sha256_hash,
+            Document.extraction_status == "SUCCESS",
+        ).order_by(Document.created_at.desc())
+        return db.scalar(stmt)
+
+    @classmethod
     def list_by_application(cls, db: Session, application_id: str) -> List[Document]:
         stmt = select(Document).where(Document.application_id == application_id).order_by(Document.created_at.desc())
         return list(db.scalars(stmt).all())

@@ -31,6 +31,18 @@ STANDARD_QUESTIONS: Dict[str, str] = {
     "annual_family_income_inr": "What is your approximate total annual family income?",
     "is_bpl": "Does your family hold a valid BPL (Below Poverty Line) ration card?",
     "category": "Which social or occupational category applies to you?",
+    "caste_category": "Which social or caste category do you belong to (e.g., General, OBC, SC, or ST)?",
+    "community": "Which social community category do you belong to?",
+    "residence_type": "Do you reside in a rural village or an urban area?",
+    "farmer_type": "What type of farmer are you, such as small, marginal, or tenant farmer?",
+    "is_institutional_landholder": "Do you hold institutional agricultural land?",
+    "has_family_pensioner": "Is anyone in your family a retired government pensioner?",
+    "cultivates_notified_crop": "Do you cultivate any notified crops for the current agricultural season?",
+    "crop_season": "Which crop season are you currently sowing or cultivating (Kharif or Rabi)?",
+    "land_or_tenancy_status": "What is your agricultural land tenure status (owner or tenant)?",
+    "enrollment_type": "Are you enrolling as a loanee or non-loanee applicant?",
+    "groom_age": "What is the age of the bridegroom?",
+    "registration_days_after_lmp": "How many days after your LMP was your pregnancy registered?",
     "widow_status": "Are you applying under the widow assistance category?",
     "facing_violence_or_abuse_flag": "Are you seeking emergency protection or crisis support?",
     "girl_child_age": "What is the age of your girl child for the savings account?",
@@ -295,6 +307,55 @@ def generate_valid_actions(state: AgentState) -> List[AgentAction]:
             if ActionValidator.validate(ready_action, state)[0]:
                 actions.append(ready_action)
 
+        # Phase 6 remains state-driven: only a handoff-ready track may be verified
+        # or offered package generation. The dispatcher re-verifies before writing.
+        if state.stage == "READY_FOR_HANDOFF" or any(a.get("status") == "READY_FOR_HANDOFF" for a in state.applications.values()):
+            verify_action = AgentAction(
+                action=ActionType.VERIFY_PRE_SUBMISSION,
+                field=active_app_id,
+                arguments={"application_id": active_app_id},
+                reason_code=ReasonCode.PRE_SUBMISSION_VERIFICATION_REQUIRED,
+                notes="Verify current profile, eligibility, documents, and readiness before CSC/VLE handoff",
+            )
+            if ActionValidator.validate(verify_action, state)[0]:
+                actions.append(verify_action)
+            package_action = AgentAction(
+                action=ActionType.GENERATE_HANDOFF_PACKAGE,
+                field=active_app_id,
+                arguments={"application_id": active_app_id},
+                reason_code=ReasonCode.HANDOFF_PACKAGE_READY,
+                notes="Generate the non-official preparation package only after verification",
+            )
+            if ActionValidator.validate(package_action, state)[0]:
+                actions.append(package_action)
+
+        # 4e. Phase 7: Application Rejection Recovery Actions
+        app_dict = state.applications.get(active_app_id) or {}
+        app_status = app_dict.get("status")
+        if app_status == "REJECTION_EVIDENCE_REQUIRED":
+            rej_action = AgentAction(
+                action=ActionType.REQUEST_REJECTION_EVIDENCE,
+                field=active_app_id,
+                arguments={"application_id": active_app_id},
+                question="Please provide your official rejection notice, letter, or SMS to diagnose the rejection reason.",
+                reason_code=ReasonCode.REJECTION_EVIDENCE_REQUIRED,
+                notes="Citizen indicated rejection; official evidence required before diagnosing",
+            )
+            if ActionValidator.validate(rej_action, state)[0]:
+                actions.append(rej_action)
+
+        elif app_status in ("RECOVERY_REQUIRED", "RECOVERY_IN_PROGRESS"):
+            rec_action = AgentAction(
+                action=ActionType.REQUEST_RECOVERY_DOCUMENT,
+                field=active_app_id,
+                arguments={"application_id": active_app_id, "rejection_event_id": app_dict.get("rejection_event_id") or "event_current"},
+                question="Please upload the updated bank proof or correction document to complete recovery.",
+                reason_code=ReasonCode.RECOVERY_REQUIRED,
+                notes="Rejection diagnosed; requesting remediation document",
+            )
+            if ActionValidator.validate(rec_action, state)[0]:
+                actions.append(rec_action)
+
     # 5. Multi-scheme application switching if multiple applications exist
     if len(state.applications) > 1 and state.active_scheme_id:
         other_schemes = [s for s in state.applications.keys() if s != state.active_scheme_id]
@@ -378,18 +439,34 @@ class DeterministicPolicy:
             if act.action == ActionType.REEVALUATE_SCHEMES:
                 return act
 
-        # 3c. Document and Readiness Actions (Discrepancy -> Process -> Request -> Ready)
+        # 3c. Document and Readiness Actions (Discrepancy -> Process -> Recovery -> Request -> Ready)
         for act in valid_actions:
             if act.action == ActionType.RESOLVE_DOCUMENT_DISCREPANCY:
                 return act
         for act in valid_actions:
             if act.action == ActionType.PROCESS_DOCUMENT:
                 return act
+        # 3d. Rejection and Recovery Actions take precedence over regular intake
+        for act in valid_actions:
+            if act.action in (
+                ActionType.REQUEST_REJECTION_EVIDENCE,
+                ActionType.DECODE_REJECTION,
+                ActionType.REQUEST_RECOVERY_DOCUMENT,
+                ActionType.RESOLVE_REJECTION,
+                ActionType.REASSESS_APPLICATION,
+            ):
+                return act
         for act in valid_actions:
             if act.action == ActionType.REQUEST_DOCUMENT:
                 return act
         for act in valid_actions:
             if act.action == ActionType.READY_FOR_HANDOFF:
+                return act
+        for act in valid_actions:
+            if act.action == ActionType.VERIFY_PRE_SUBMISSION:
+                return act
+        for act in valid_actions:
+            if act.action == ActionType.GENERATE_HANDOFF_PACKAGE:
                 return act
         for act in valid_actions:
             if act.action == ActionType.CALCULATE_READINESS:

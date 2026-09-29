@@ -27,3 +27,8 @@ htmlcov/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local storage and temporary artifacts
+backend/storage/
+storage/
+

@@ -107,6 +107,8 @@ def load_case(db: Session, case_id: str) -> Optional[AgentState]:
         evaluated_profile_fingerprint=evaluated_fp,
         asked_questions=asked,
         conversation_history=history,
+        language_preference=case.metadata_json.get("language_preference", "en") if case.metadata_json else "en",
+        documents=case.metadata_json.get("documents", []) if (case.metadata_json and "documents" in case.metadata_json) else ([{"id": d.id, "document_type": d.document_type, "status": d.status} for d in case.documents] if hasattr(case, "documents") and case.documents else []),
         stage=case.stage,
         iteration=case.iteration,
         max_iterations=case.max_iterations,
@@ -139,6 +141,12 @@ def persist_agent_state(
     case.max_iterations = state.max_iterations
     case.candidate_schemes = state.candidate_schemes
     case.missing_information = state.missing_information
+
+    # Persist language preference and documents in case metadata
+    meta = dict(case.metadata_json or {})
+    meta["language_preference"] = getattr(state, "language_preference", "en")
+    meta["documents"] = list(getattr(state, "documents", []))
+    case.metadata_json = meta
 
     # 2. Persist Confirmed Profile
     if state.profile:

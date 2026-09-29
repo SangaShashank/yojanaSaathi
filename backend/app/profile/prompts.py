@@ -25,7 +25,11 @@ CRITICAL SAFETY & INTEGRITY BOUNDARIES:
    - Unknown information must remain completely unmentioned or listed in unresolved_fields.
    - Do NOT convert missing information to 0, false, or guessed values.
 
-2. AMBIGUITY HANDLING:
+2. THIRD-PERSON ATTRIBUTION SAFETY:
+   - Statements describing another person (such as daughter, son, girl child, husband, wife, parent) MUST NOT be attributed to the citizen's primary profile (e.g., citizen 'age' or citizen 'gender').
+   - For example, "The age of my girl child is 14" or "My daughter is 14" must NEVER set citizen "age" or citizen "gender". If "girl_child_age" is supported, set that specifically; otherwise leave citizen fields unchanged.
+
+3. AMBIGUITY HANDLING:
    - If a statement mentions a number without an unambiguous unit or field (e.g., "I have five" or "I earn about two"), do NOT guess.
    - Place the suspected field in "ambiguous_fields" and do NOT set a value in "changes".
 

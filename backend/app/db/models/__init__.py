@@ -15,6 +15,8 @@ from backend.app.db.models.application_requirement import ApplicationDocumentReq
 from backend.app.db.models.human_confirmation import HumanConfirmation
 from backend.app.db.models.events import ApplicationEvent, AgentEvent
 from backend.app.db.models.scheme_catalog import SchemeCatalog
+from backend.app.db.models.handoff_package import HandoffPackage
+from backend.app.db.models.rejection import RejectionEvent, RejectionEvidence, RejectionDecode, RecoveryActionRecord
 
 __all__ = [
     "User",
@@ -29,5 +31,7 @@ __all__ = [
     "ApplicationEvent",
     "AgentEvent",
     "SchemeCatalog",
+    "HandoffPackage",
+    "RejectionEvent", "RejectionEvidence", "RejectionDecode", "RecoveryActionRecord",
 ]
 

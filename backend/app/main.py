@@ -8,12 +8,17 @@ and database-backed state synchronization.
 from contextlib import asynccontextmanager
 import logging
 from typing import Any, Dict, List, Optional
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, status, File, UploadFile, Form
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+
 from backend.app.agent.controller import AgentController
 from backend.app.agent.provider import DeterministicActionProvider
+from backend.app.agent.policies import STANDARD_QUESTIONS
 from backend.app.db.repositories.application_repository import ApplicationRepository
 from backend.app.db.repositories.case_repository import CaseRepository
 from backend.app.db.repositories.confirmation_repository import ConfirmationRepository
@@ -30,6 +35,7 @@ from backend.app.db.services.profile_persistence import (
 from backend.app.db.services.state_persistence import load_case, persist_agent_state
 from backend.app.db.session import check_db_connection, engine, get_db
 from backend.app.profile.coordinator import ProfileCoordinator
+from backend.app.schemas.profile import CitizenProfile
 from backend.app.schemas.multi_scheme import (
     ApplicationItemResponse,
     ApplicationListResponse,
@@ -40,6 +46,18 @@ from backend.app.schemas.multi_scheme import (
 )
 from backend.app.services.multi_scheme_coordinator import MultiSchemeCoordinator
 from backend.app.services.scheme_loader import load_all_schemes
+from backend.app.schemas.handoff import HandoffPackageResponse, PreSubmissionVerification
+from backend.app.services.handoff_service import HandoffService, PreSubmissionBlockedError
+from backend.app.schemas.rejection import RejectionEvidenceRequest, RejectionDecodeResult, RecoveryActionRequest, RecoveryStateResponse
+from backend.app.services.rejection_recovery_service import RejectionRecoveryService
+from backend.app.schemas.voice import (
+    LANGUAGE_METADATA,
+    SUPPORTED_LANGUAGES,
+    SupportedLanguagesResponse,
+    VoiceTurnResponse,
+)
+from backend.app.services.voice_service import VoiceService
+from backend.app.services.voice_ui import VOICE_UI_HTML
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +86,30 @@ app = FastAPI(
 
 profile_coordinator = ProfileCoordinator()
 agent_controller = AgentController(provider=DeterministicActionProvider())
+handoff_service = HandoffService()
+rejection_recovery_service = RejectionRecoveryService()
+voice_service = VoiceService(
+    profile_coordinator=profile_coordinator,
+    agent_controller=agent_controller,
+)
+
+# Mount static directory for frontend assets
+static_dir = Path(__file__).resolve().parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+
+@app.get("/", response_class=HTMLResponse, tags=["Web UI"])
+def web_ui_endpoint():
+    """
+    Renders the complete unified citizen + CSC/VLE web application shell.
+    """
+    template_path = Path(__file__).resolve().parent / "templates" / "index.html"
+    if not template_path.exists():
+        raise HTTPException(status_code=500, detail="Web UI template missing.")
+    with open(template_path, "r", encoding="utf-8") as f:
+        html_content = f.read()
+    return HTMLResponse(content=html_content)
 
 
 # =========================================================================
@@ -228,6 +270,140 @@ def process_message_endpoint(
     )
 
 
+QUICK_REPLIES_MAP = {
+    "land_ownership": [
+        {"label": "🌱 Yes, I own land", "text": "Yes, I own cultivable agricultural land"},
+        {"label": "❌ No, tenant / landless", "text": "No, I am a tenant farmer or landless"},
+    ],
+    "cultivates_land": [
+        {"label": "🌾 Yes, I cultivate", "text": "Yes, I actively cultivate the land myself"},
+        {"label": "❌ No, I don't cultivate", "text": "No, I do not cultivate"},
+    ],
+    "residence_type": [
+        {"label": "🏡 Rural village", "text": "I reside in a rural area"},
+        {"label": "🏙️ Urban city", "text": "I reside in an urban area"},
+    ],
+    "is_bpl": [
+        {"label": "📄 Yes, BPL card holder", "text": "Yes, my family has a BPL ration card"},
+        {"label": "❌ No BPL card", "text": "No, we do not have a BPL card"},
+    ],
+    "category": [
+        {"label": "General", "text": "My category is General"},
+        {"label": "OBC / BC", "text": "My category is OBC"},
+        {"label": "SC", "text": "My category is SC"},
+        {"label": "ST", "text": "My category is ST"},
+    ],
+    "gender": [
+        {"label": "Male", "text": "I am male"},
+        {"label": "Female", "text": "I am female"},
+    ],
+    "farmer_id_status": [
+        {"label": "✓ Yes, registered Farmer ID", "text": "Yes, I have an active registered Farmer ID"},
+        {"label": "❌ No Farmer ID", "text": "No, I do not have a Farmer ID"},
+    ],
+    "co_borrower_legal_heir": [
+        {"label": "✓ Yes, co-borrower available", "text": "Yes, I have a co-borrower or legal heir"},
+        {"label": "❌ No co-borrower", "text": "No, I do not have a co-borrower"},
+    ],
+    "marriage_status": [
+        {"label": "💍 Married", "text": "I am married"},
+        {"label": "Single / Unmarried", "text": "I am single"},
+        {"label": "Widowed", "text": "I am a widow"},
+    ],
+}
+
+
+@app.get("/api/cases/{case_id}/agent/next-question", tags=["Cases"])
+def get_next_agent_question_endpoint(case_id: str, db: Session = Depends(get_db)):
+    """
+    Computes the next high-value question the agent needs to ask the user,
+    prioritizing missing fields for selected schemes and active candidate programs.
+    Returns the natural-language question and 1-click quick response options.
+    """
+    state = load_case(db, case_id)
+    if not state:
+        raise HTTPException(status_code=404, detail=f"Case {case_id} not found.")
+
+    state.recompute_missing_information()
+
+    from backend.app.agent.policies import score_missing_field, STANDARD_QUESTIONS, FIELD_PRIORITY
+    all_catalog = {s.scheme_id: s for s in load_all_schemes()}
+    profile_obj = CitizenProfile.model_validate(state.profile)
+
+    # 1. Determine active target schemes: selected schemes first, then candidate schemes, then all
+    target_schemes = []
+    if state.selected_schemes:
+        target_schemes = [all_catalog[sid] for sid in state.selected_schemes if sid in all_catalog]
+    elif state.candidate_schemes:
+        target_schemes = [all_catalog[sid] for sid in state.candidate_schemes if sid in all_catalog]
+
+    # Find missing fields specifically needed by these active target schemes
+    scheme_specific_missing = set()
+    scheme_field_map = {}
+    for scheme in target_schemes:
+        for cond in scheme.eligibility.conditions:
+            val, is_known = profile_obj.get_field_value(cond.field)
+            if not is_known:
+                scheme_specific_missing.add(cond.field)
+                if cond.field not in scheme_field_map:
+                    scheme_field_map[cond.field] = []
+                if scheme.title_en not in scheme_field_map[cond.field]:
+                    scheme_field_map[cond.field].append(scheme.title_en)
+
+    # If active schemes have missing fields, prioritize them!
+    if scheme_specific_missing:
+        candidate_fields = list(scheme_specific_missing)
+    else:
+        # Otherwise fall back to overall missing information
+        state.recompute_missing_information()
+        candidate_fields = list(state.missing_information)
+
+    if not candidate_fields:
+        return {
+            "has_question": False,
+            "message": "All required profile facts are confirmed! Your profile is ready for scheme evaluation.",
+            "field": None,
+            "question": None,
+            "quick_replies": [],
+        }
+
+    # Sort candidates by policy priority score
+    scored = sorted(candidate_fields, key=lambda f: score_missing_field(f, state), reverse=True)
+    target_field = scored[0]
+
+    question = STANDARD_QUESTIONS.get(target_field, f"Could you please share your {target_field.replace('_', ' ')}?")
+    quick_replies = QUICK_REPLIES_MAP.get(target_field, [])
+
+    # Pre-selection vs Post-selection scheme context badge
+    if state.selected_schemes:
+        selected_titles = [all_catalog[sid].title_en for sid in state.selected_schemes if sid in all_catalog]
+        needed_selected = [s for s in scheme_field_map.get(target_field, []) if s in selected_titles]
+        if not needed_selected:
+            # Check conditions of selected schemes directly
+            for sid in state.selected_schemes:
+                if sid in all_catalog:
+                    sch = all_catalog[sid]
+                    for cond in sch.eligibility.conditions:
+                        if cond.field == target_field and sch.title_en not in needed_selected:
+                            needed_selected.append(sch.title_en)
+        if needed_selected:
+            scheme_context = f"Prerequisite for {', '.join(needed_selected[:2])}"
+        else:
+            scheme_context = "Information needed to check supported schemes"
+    else:
+        scheme_context = "Information needed to check supported schemes"
+
+    return {
+        "has_question": True,
+        "field": target_field,
+        "question": question,
+        "scheme_context": scheme_context,
+        "quick_replies": quick_replies,
+        "remaining_gaps_count": len(candidate_fields),
+    }
+
+
+
 # =========================================================================
 # PROFILE & CONFIRMATION ENDPOINTS
 # =========================================================================
@@ -271,12 +447,22 @@ def confirm_profile_endpoint(
     except ProfileConcurrencyError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
+    agent_message = None
+    try:
+        decision = agent_controller.run_step(state)
+        persist_agent_state(db, state)
+        if decision and getattr(decision, "explanation", None):
+            agent_message = decision.explanation
+    except Exception as e:
+        logger.debug(f"Agent step execution note: {e}")
+
     return {
         "status": "CONFIRMED",
         "confirmed_profile": updated_profile,
         "missing_information": state.missing_information,
         "stage": state.stage,
         "eligibility_invalidated": invalidated,
+        "agent_message": agent_message,
     }
 
 
@@ -299,6 +485,89 @@ def reject_profile_endpoint(case_id: str, db: Session = Depends(get_db)):
         "confirmed_profile": rejected_profile,
         "message": "Proposed profile facts rejected. Confirmed profile unchanged.",
     }
+
+
+class ManualEditProfileRequest(BaseModel):
+    field: str
+    value: Any
+    auto_confirm: bool = False
+
+
+@app.get("/api/profile/fields", tags=["Profile"])
+def get_supported_profile_fields_endpoint():
+    """Lists supported citizen profile fields with friendly questions and types."""
+    fields_meta = []
+    boolean_fields = {
+        "land_ownership", "cultivates_land", "active_cultivation_status",
+        "is_bpl", "widow_status", "facing_violence_or_abuse_flag",
+        "pregnancy_or_lactation_status", "co_borrower_legal_heir",
+    }
+    number_fields = {
+        "age", "land_acres", "land_holding_acres", "annual_income_inr",
+        "annual_family_income_inr", "girl_child_age", "existing_ssy_accounts_count",
+    }
+
+    for f_name, f_info in CitizenProfile.model_fields.items():
+        question = STANDARD_QUESTIONS.get(f_name, f"What is your {f_name.replace('_', ' ')}?")
+        kind = "string"
+        options = None
+        if f_name in boolean_fields or "bool" in str(f_info.annotation).lower():
+            kind = "boolean"
+            options = [
+                {"label": "Yes (True)", "value": "true"},
+                {"label": "No (False)", "value": "false"},
+            ]
+        elif f_name in number_fields or "int" in str(f_info.annotation).lower() or "float" in str(f_info.annotation).lower():
+            kind = "number"
+
+        fields_meta.append({
+            "name": f_name,
+            "label": f_name.replace("_", " ").title(),
+            "question": question,
+            "kind": kind,
+            "options": options,
+            "type": str(f_info.annotation),
+            "description": question,
+        })
+    return {"fields": fields_meta}
+
+
+@app.post("/api/cases/{case_id}/profile/edit", tags=["Profile"])
+def edit_profile_field_endpoint(
+    case_id: str, payload: ManualEditProfileRequest, db: Session = Depends(get_db)
+):
+    """
+    Directly updates a profile field manually:
+    - Bypasses Gemini fact extraction.
+    - Uses deterministic schema validation.
+    - If auto_confirm=True, confirms immediately and invalidates stale evaluations.
+    - Otherwise stages as pending confirmation.
+    """
+    state = load_case(db, case_id)
+    if not state:
+        raise HTTPException(status_code=404, detail=f"Case {case_id} not found.")
+
+    try:
+        res = profile_coordinator.apply_manual_edit(
+            state=state,
+            field=payload.field,
+            value=payload.value,
+            auto_confirm=payload.auto_confirm,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if state.pending_confirmation:
+        ConfirmationRepository.create_confirmation(
+            db=db,
+            confirmation_id=state.pending_confirmation["confirmation_id"],
+            case_id=case_id,
+            proposed_changes=state.pending_confirmation.get("changes", []),
+            raw_patch=state.pending_confirmation.get("raw_patch", {}),
+        )
+
+    persist_agent_state(db, state)
+    return res
 
 
 # =========================================================================
@@ -412,6 +681,37 @@ def get_case_schemes_endpoint(case_id: str, db: Session = Depends(get_db)):
         total_evaluated=len(outcome_items),
         schemes=outcome_items,
     )
+
+
+@app.get("/api/schemes/catalog", tags=["Multi-Scheme"])
+def get_schemes_catalog_endpoint():
+    """Returns the full curated catalog of all 13 supported welfare schemes in canonical order."""
+    schemes = load_all_schemes()
+    return {
+        "total_schemes": len(schemes),
+        "schemes": [
+            {
+                "scheme_id": s.scheme_id,
+                "title_en": s.title_en,
+                "title_hi": getattr(s, "title_hi", None) or s.title_en,
+                "title_te": getattr(s, "title_te", None) or s.title_en,
+                "department": getattr(s, "department", getattr(s, "ministry", "Government Welfare")),
+                "ministry": getattr(s, "ministry", "Government of India"),
+                "target_beneficiary": getattr(s, "target_beneficiary", ""),
+                "benefit_summary": getattr(s, "benefit_summary", ""),
+                "required_fields": [c.field for c in s.eligibility.conditions],
+                "required_documents": [
+                    {
+                        "doc_id": d.doc_id,
+                        "name_en": d.name_en,
+                        "is_mandatory": getattr(d, "is_mandatory", True),
+                    }
+                    for d in getattr(s, "required_documents", [])
+                ],
+            }
+            for s in schemes
+        ],
+    }
 
 
 @app.post(
@@ -852,5 +1152,163 @@ def link_document_endpoint(
         return res
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# =========================================================================
+# PHASE 6: PRE-SUBMISSION DOSSIER & CSC/VLE HANDOFF
+# =========================================================================
+
+@app.get("/api/cases/{case_id}/applications/{application_id}/pre-submission-verification", response_model=PreSubmissionVerification, tags=["Pre-Submission Handoff"])
+def pre_submission_verification_endpoint(case_id: str, application_id: str, db: Session = Depends(get_db)):
+    state = load_case(db, case_id)
+    if not state:
+        raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found.")
+    return handoff_service.verify(state, application_id, db)
+
+
+def _generate_handoff(case_id: str, application_id: str, db: Session) -> HandoffPackageResponse:
+    state = load_case(db, case_id)
+    if not state:
+        raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found.")
+    try:
+        return handoff_service.generate_handoff_package(state, application_id, db)
+    except PreSubmissionBlockedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+@app.post("/api/cases/{case_id}/applications/{application_id}/reference-sheet", response_model=HandoffPackageResponse, tags=["Pre-Submission Handoff"])
+def generate_reference_sheet_endpoint(case_id: str, application_id: str, db: Session = Depends(get_db)):
+    """Generates the concise reference sheet and its matching dossier snapshot."""
+    return _generate_handoff(case_id, application_id, db)
+
+
+@app.post("/api/cases/{case_id}/applications/{application_id}/dossier", response_model=HandoffPackageResponse, tags=["Pre-Submission Handoff"])
+def generate_dossier_endpoint(case_id: str, application_id: str, db: Session = Depends(get_db)):
+    return _generate_handoff(case_id, application_id, db)
+
+
+@app.post("/api/cases/{case_id}/applications/{application_id}/handoff-package", response_model=HandoffPackageResponse, tags=["Pre-Submission Handoff"])
+def generate_handoff_package_endpoint(case_id: str, application_id: str, db: Session = Depends(get_db)):
+    return _generate_handoff(case_id, application_id, db)
+
+
+@app.get("/api/cases/{case_id}/applications/{application_id}/handoff-package", response_model=HandoffPackageResponse, tags=["Pre-Submission Handoff"])
+def get_handoff_package_endpoint(case_id: str, application_id: str, db: Session = Depends(get_db)):
+    state = load_case(db, case_id)
+    if not state:
+        raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found.")
+    package = handoff_service.get_current_package(state, application_id, db)
+    if not package:
+        raise HTTPException(status_code=404, detail="No current handoff package is available.")
+    return package
+
+
+@app.get("/api/cases/{case_id}/applications/{application_id}/handoff-package/{package_id}/{artifact}", tags=["Pre-Submission Handoff"])
+def download_handoff_artifact_endpoint(case_id: str, application_id: str, package_id: str, artifact: str, db: Session = Depends(get_db)):
+    """Streams a controlled PDF download and never reveals a server filesystem path."""
+    state = load_case(db, case_id)
+    if not state:
+        raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found.")
+    try:
+        path = handoff_service.package_file(state, application_id, package_id, artifact, db)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Requested current package artifact is unavailable.")
+    return FileResponse(path, media_type="application/pdf", filename=f"yojana-saathi-{artifact}.pdf")
+
+
+# Phase 7: external evidence only; no portal polling or submission is performed.
+@app.post("/api/cases/{case_id}/applications/{application_id}/rejection", response_model=RecoveryStateResponse, tags=["Rejection Recovery"])
+def claim_rejection_endpoint(case_id: str, application_id: str, db: Session = Depends(get_db)):
+    try: return rejection_recovery_service.claim(db, case_id, application_id)
+    except ValueError as exc: raise HTTPException(status_code=404, detail=str(exc))
+
+@app.post("/api/cases/{case_id}/applications/{application_id}/rejection/{event_id}/evidence", tags=["Rejection Recovery"])
+def add_rejection_evidence_endpoint(case_id: str, application_id: str, event_id: str, payload: RejectionEvidenceRequest, db: Session = Depends(get_db)):
+    try:
+        evidence=rejection_recovery_service.evidence(db,case_id,application_id,event_id,payload)
+        return {"evidence_id":evidence.id,"application_id":application_id,"status":evidence.status}
+    except ValueError as exc: raise HTTPException(status_code=400,detail=str(exc))
+
+@app.post("/api/cases/{case_id}/applications/{application_id}/rejection/{event_id}/decode", response_model=RejectionDecodeResult, tags=["Rejection Recovery"])
+def decode_rejection_endpoint(case_id: str, application_id: str, event_id: str, db: Session = Depends(get_db)):
+    try: return rejection_recovery_service.decode(db,case_id,application_id,event_id)
+    except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc))
+
+@app.get("/api/cases/{case_id}/applications/{application_id}/rejection", response_model=RecoveryStateResponse, tags=["Rejection Recovery"])
+@app.get("/api/cases/{case_id}/applications/{application_id}/recovery", response_model=RecoveryStateResponse, tags=["Rejection Recovery"])
+def get_recovery_state_endpoint(case_id: str, application_id: str, db: Session = Depends(get_db)):
+    try: return rejection_recovery_service.state(db,case_id,application_id)
+    except ValueError as exc: raise HTTPException(status_code=404,detail=str(exc))
+
+@app.post("/api/cases/{case_id}/applications/{application_id}/rejection/{event_id}/recovery/action", response_model=RecoveryStateResponse, tags=["Rejection Recovery"])
+def recovery_action_endpoint(case_id: str, application_id: str, event_id: str, payload: RecoveryActionRequest, db: Session = Depends(get_db)):
+    try: return rejection_recovery_service.recovery_action(db,case_id,application_id,event_id,payload.action,payload.evidence_note)
+    except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc))
+
+
+# =========================================================================
+# PHASE 8 — MULTILINGUAL VOICE & AUDIO ENDPOINTS
+# =========================================================================
+
+@app.get("/voice", response_class=HTMLResponse, tags=["Voice"])
+def voice_ui_endpoint():
+    """
+    Renders the accessible browser voice interface with client-side SpeechSynthesis TTS,
+    recording status indicators, transcript review/editing, and typed text fallback.
+    """
+    return HTMLResponse(content=VOICE_UI_HTML)
+
+
+@app.get("/api/voice/languages", response_model=SupportedLanguagesResponse, tags=["Voice"])
+@app.get("/api/cases/{case_id}/voice/languages", response_model=SupportedLanguagesResponse, tags=["Voice"])
+def get_supported_languages_endpoint(case_id: Optional[str] = None):
+    """Returns allowlisted interaction languages (en, hi, te) and browser locale metadata."""
+    return SupportedLanguagesResponse(
+        supported_languages=SUPPORTED_LANGUAGES,
+        languages=LANGUAGE_METADATA,
+    )
+
+
+@app.post("/api/cases/{case_id}/voice", response_model=VoiceTurnResponse, tags=["Voice"])
+async def process_voice_turn_endpoint(
+    case_id: str,
+    audio: UploadFile = File(..., description="Speech audio file (WAV, MP3, WebM, OGG, M4A, FLAC)"),
+    language: Optional[str] = Form("en", description="Preferred language code: en, hi, or te"),
+    turn_id: Optional[str] = Form(None, description="Optional idempotency turn identifier"),
+    db: Session = Depends(get_db),
+):
+    """
+    Processes citizen voice recording through the existing message and profile pipeline:
+    1. Validates audio upload constraints (size <= 10MB, non-executable, audio MIME).
+    2. Transcribes speech audio using Groq Whisper.
+    3. Passes raw transcript into existing message pipeline (ProfileCoordinator / AgentController).
+    4. Evaluates or updates case state without bypassing human confirmation.
+    5. Returns structured speakable response for browser SpeechSynthesis.
+    """
+    state = load_case(db, case_id)
+    if not state:
+        raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found.")
+
+    audio_bytes = await audio.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="Empty audio recording received.")
+
+    try:
+        response = voice_service.process_voice_turn(
+            db=db,
+            case_id=case_id,
+            audio_bytes=audio_bytes,
+            filename=audio.filename or "recording.wav",
+            content_type=audio.content_type,
+            language=language,
+            turn_id=turn_id,
+        )
+        return response
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error processing voice turn for case {case_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Voice processing failed: {e}")
+
 
 

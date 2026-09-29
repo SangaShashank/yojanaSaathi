@@ -38,12 +38,21 @@ class ActionDispatcher:
             ActionType.RESOLVE_DOCUMENT_DISCREPANCY: self._handle_resolve_document_discrepancy,
             ActionType.CALCULATE_READINESS: self._handle_calculate_readiness,
             ActionType.READY_FOR_HANDOFF: self._handle_ready_for_handoff,
+            ActionType.VERIFY_PRE_SUBMISSION: self._handle_verify_pre_submission,
+            ActionType.GENERATE_REFERENCE_SHEET: self._handle_generate_handoff_package,
+            ActionType.GENERATE_DOSSIER: self._handle_generate_handoff_package,
+            ActionType.GENERATE_HANDOFF_PACKAGE: self._handle_generate_handoff_package,
             ActionType.RESOLVE_CONTRADICTION: self._handle_resolve_contradiction,
             ActionType.NO_SUPPORTED_MATCH: self._handle_no_supported_match,
             ActionType.ESCALATE_HUMAN: self._handle_escalate_human,
             ActionType.FINISH: self._handle_finish,
             ActionType.REQUEST_CLARIFICATION: self._handle_request_clarification,
             ActionType.REEVALUATE_CANDIDATES: self._handle_reevaluate_candidates,
+            ActionType.REQUEST_REJECTION_EVIDENCE: self._handle_request_rejection_evidence,
+            ActionType.DECODE_REJECTION: self._handle_decode_rejection,
+            ActionType.REQUEST_RECOVERY_DOCUMENT: self._handle_request_recovery_document,
+            ActionType.RESOLVE_REJECTION: self._handle_resolve_rejection,
+            ActionType.REASSESS_APPLICATION: self._handle_reassess_application,
         }
 
     def dispatch(self, action: AgentAction, state: AgentState) -> Tuple[bool, Dict[str, Any], Optional[str]]:
@@ -302,4 +311,81 @@ class ActionDispatcher:
             "application_id": app_id,
             "status": "READY_FOR_HANDOFF",
         }
+
+    def _handle_verify_pre_submission(self, action: AgentAction, state: AgentState) -> Dict[str, Any]:
+        from backend.app.services.handoff_service import HandoffService
+        app_id = action.field or action.arguments.get("application_id") or state.active_application_id
+        result = HandoffService().verify(state, app_id, self.db)
+        return {"action_executed": ActionType.VERIFY_PRE_SUBMISSION.value, "application_id": app_id,
+                "passed": result.passed, "blocking_items": result.blocking_items, "readiness_status": result.readiness_status}
+
+    def _handle_generate_handoff_package(self, action: AgentAction, state: AgentState) -> Dict[str, Any]:
+        from backend.app.services.handoff_service import HandoffService, PreSubmissionBlockedError
+        app_id = action.field or action.arguments.get("application_id") or state.active_application_id
+        try:
+            package = HandoffService().generate_handoff_package(state, app_id, self.db)
+        except PreSubmissionBlockedError as exc:
+            return {"action_executed": action.action.value, "application_id": app_id, "status": "BLOCKED", "reason": str(exc)}
+        return {"action_executed": action.action.value, "application_id": app_id, "status": package.status,
+                "package_id": package.package_id, "readiness_status": package.readiness}
+
+    def _handle_request_rejection_evidence(self, action: AgentAction, state: AgentState) -> Dict[str, Any]:
+        app_id = action.field or action.arguments.get("application_id") or state.active_application_id
+        for s_id, app_info in state.applications.items():
+            if app_info.get("id") == app_id or s_id == app_id:
+                app_info["status"] = "REJECTION_EVIDENCE_REQUIRED"
+                break
+        state.stage = "REJECTION_EVIDENCE_REQUIRED"
+        return {
+            "action_executed": ActionType.REQUEST_REJECTION_EVIDENCE.value,
+            "application_id": app_id,
+            "status": "REJECTION_EVIDENCE_REQUIRED",
+            "message": "Official rejection notice or SMS required before decoding reason.",
+        }
+
+    def _handle_decode_rejection(self, action: AgentAction, state: AgentState) -> Dict[str, Any]:
+        from backend.app.services.rejection_recovery_service import RejectionRecoveryService
+        app_id = action.field or action.arguments.get("application_id") or state.active_application_id
+        event_id = action.arguments.get("rejection_event_id")
+        if not self.db or not event_id:
+            return {"action_executed": ActionType.DECODE_REJECTION.value, "application_id": app_id, "status": "DECODED"}
+        service = RejectionRecoveryService()
+        result = service.decode(self.db, state.case_id, app_id, event_id)
+        return {
+            "action_executed": ActionType.DECODE_REJECTION.value,
+            "application_id": app_id,
+            "status": result.status,
+            "categories": result.categories,
+            "requires_human_verification": result.requires_human_verification,
+        }
+
+    def _handle_request_recovery_document(self, action: AgentAction, state: AgentState) -> Dict[str, Any]:
+        app_id = action.field or action.arguments.get("application_id") or state.active_application_id
+        event_id = action.arguments.get("rejection_event_id")
+        action_name = "REQUEST_RECOVERY_DOCUMENT"
+        if self.db and event_id:
+            from backend.app.services.rejection_recovery_service import RejectionRecoveryService
+            RejectionRecoveryService().recovery_action(self.db, state.case_id, app_id, event_id, action_name)
+        for s_id, app_info in state.applications.items():
+            if app_info.get("id") == app_id or s_id == app_id:
+                app_info["status"] = "RECOVERY_IN_PROGRESS"
+                break
+        return {"action_executed": ActionType.REQUEST_RECOVERY_DOCUMENT.value, "application_id": app_id, "status": "RECOVERY_IN_PROGRESS"}
+
+    def _handle_resolve_rejection(self, action: AgentAction, state: AgentState) -> Dict[str, Any]:
+        app_id = action.field or action.arguments.get("application_id") or state.active_application_id
+        event_id = action.arguments.get("rejection_event_id")
+        evidence_note = action.arguments.get("recovery_evidence")
+        if self.db and event_id:
+            from backend.app.services.rejection_recovery_service import RejectionRecoveryService
+            RejectionRecoveryService().recovery_action(self.db, state.case_id, app_id, event_id, "RESOLVE_REJECTION", evidence_note=evidence_note)
+        for s_id, app_info in state.applications.items():
+            if app_info.get("id") == app_id or s_id == app_id:
+                app_info["status"] = "RECOVERY_COMPLETED"
+                break
+        return {"action_executed": ActionType.RESOLVE_REJECTION.value, "application_id": app_id, "status": "RECOVERY_COMPLETED"}
+
+    def _handle_reassess_application(self, action: AgentAction, state: AgentState) -> Dict[str, Any]:
+        return self._handle_resolve_rejection(action, state)
+
 

@@ -351,13 +351,67 @@ class DocumentCoordinator:
         if not file_bytes:
             raise ValueError(f"Could not read document file from storage reference: {file_ref}")
 
-        # 2. Extract structured fields
-        extraction = DocumentProcessor.process_file(
-            file_bytes=file_bytes,
-            mime_type=mime or "application/pdf",
-            filename=orig_name or "document",
-            document_type=doc_type,
-        )
+        # Check duplicate OCR processing avoidance:
+        # If this document itself or another document record with identical content hash already extracted data successfully:
+        sha256_hash = getattr(doc, "sha256_hash", None) if db else (doc.get("sha256_hash") if isinstance(doc, dict) else None)
+        reused_extraction = None
+
+        existing_status = getattr(doc, "extraction_status", None) if db else (doc.get("extraction_status") if isinstance(doc, dict) else None)
+        existing_data = getattr(doc, "extracted_data", None) if db else (doc.get("extracted_data") if isinstance(doc, dict) else None)
+
+        if existing_status == "SUCCESS" and existing_data:
+            reused_extraction = DocumentExtractionResult(
+                document_type=doc_type,
+                fields=existing_data,
+                extraction_status="SUCCESS",
+                raw_text="",
+                extraction_method="REUSED_CACHE",
+                ocr_provider="tesseract",
+                pages_processed=1,
+            )
+        elif sha256_hash:
+            if db:
+                prev_doc = DocumentRepository.find_processed_by_hash(db, sha256_hash)
+                if prev_doc and prev_doc.id != document_id and prev_doc.extracted_data:
+                    reused_extraction = DocumentExtractionResult(
+                        document_type=doc_type,
+                        fields=prev_doc.extracted_data,
+                        extraction_status=prev_doc.extraction_status or "SUCCESS",
+                        raw_text="",
+                        extraction_method="REUSED_CACHE",
+                        ocr_provider="tesseract",
+                        pages_processed=1,
+                    )
+            else:
+                for app_d in getattr(state, "documents", []):
+                    if (
+                        isinstance(app_d, dict)
+                        and app_d.get("id") != document_id
+                        and app_d.get("sha256_hash") == sha256_hash
+                        and app_d.get("extraction_status") == "SUCCESS"
+                        and app_d.get("extracted_data")
+                    ):
+                        reused_extraction = DocumentExtractionResult(
+                            document_type=doc_type,
+                            fields=app_d.get("extracted_data"),
+                            extraction_status="SUCCESS",
+                            raw_text="",
+                            extraction_method="REUSED_CACHE",
+                            ocr_provider="tesseract",
+                            pages_processed=1,
+                        )
+                        break
+
+        if reused_extraction:
+            extraction = reused_extraction
+        else:
+            # 2. Extract structured fields via native PDF or OCR
+            extraction = DocumentProcessor.process_file(
+                file_bytes=file_bytes,
+                mime_type=mime or "application/pdf",
+                filename=orig_name or "document",
+                document_type=doc_type,
+            )
 
         # 3. Compare with confirmed profile
         profile_data = state.profile or {}
@@ -374,7 +428,7 @@ class DocumentCoordinator:
             )
 
         # 4. Determine resulting statuses
-        if extraction.extraction_status == "FAILED" or extraction.extraction_status == "UNREADABLE":
+        if extraction.extraction_status in ("FAILED", "UNREADABLE", "PROCESSING_LIMIT_EXCEEDED"):
             doc_status = "INVALID"
             v_status = "NOT_VERIFIED"
             req_status = DocumentRequirementStatus.INVALID.value
@@ -427,6 +481,8 @@ class DocumentCoordinator:
                     "extraction_status": extraction.extraction_status,
                     "verification_status": v_status,
                     "discrepancies_count": len(discrepancies),
+                    "extraction_method": extraction.extraction_method,
+                    "ocr_provider": extraction.ocr_provider,
                 },
             )
             db.commit()
@@ -435,7 +491,10 @@ class DocumentCoordinator:
             doc["extraction_status"] = extraction.extraction_status
             doc["verification_status"] = v_status
             doc["extracted_data"] = extraction.fields
-            doc["discrepancies"] = [d.dict() for d in discrepancies]
+            doc["discrepancies"] = [d.model_dump() if hasattr(d, "model_dump") else d.dict() for d in discrepancies]
+            doc["extraction_method"] = extraction.extraction_method
+            doc["ocr_provider"] = extraction.ocr_provider
+            doc["pages_processed"] = extraction.pages_processed
 
         return DocumentItemResponse(
             document_id=document_id,
@@ -449,6 +508,9 @@ class DocumentCoordinator:
             extraction_status=extraction.extraction_status,
             verification_status=v_status,
             discrepancies=discrepancies,
+            extraction_method=extraction.extraction_method,
+            ocr_provider=extraction.ocr_provider,
+            pages_processed=extraction.pages_processed,
         )
 
     def resolve_discrepancy(

@@ -147,3 +147,73 @@ def test_test_18_unsupported_field_rejected():
     sanitized = extractor._post_process_and_normalize(raw_mock_result)
     assert "state" in sanitized.changes
     assert len(sanitized.changes) == 1
+
+
+# ==============================================================================
+# REGRESSION TESTS: Third-Person Facts Attribution Prevention
+# ==============================================================================
+
+def test_regression_1_daughter_age_must_not_change_citizen_age():
+    """1. 'My daughter is 14' must not change citizen age."""
+    extractor = ProfileExtractor(use_llm=False)
+    # Direct extraction without conversation context
+    res1 = extractor.extract("My daughter is 14.")
+    assert "age" not in res1.changes
+
+    # Contextual extraction when agent specifically asked for citizen's age
+    res2 = extractor.extract(
+        text="My daughter is 14.",
+        conversation_context=[{"speaker": "agent", "field": "age", "text": "What is your age?"}],
+    )
+    assert "age" not in res2.changes
+
+
+def test_regression_2_girl_child_must_not_change_citizen_gender():
+    """2. 'My girl child is 14' must not change citizen gender."""
+    extractor = ProfileExtractor(use_llm=False)
+    # Both "The age of my girl child is 14" and "My girl child is 14"
+    res1 = extractor.extract("The age of my girl child is 14.")
+    assert "gender" not in res1.changes
+    assert "age" not in res1.changes
+
+    res2 = extractor.extract("My girl child is 14.")
+    assert "gender" not in res2.changes
+    assert "age" not in res2.changes
+
+    # Even if agent specifically asked for gender
+    res3 = extractor.extract(
+        text="The age of my girl child is 14.",
+        conversation_context=[{"speaker": "agent", "field": "gender", "text": "What is your gender?"}],
+    )
+    assert "gender" not in res3.changes
+
+
+def test_regression_3_husband_age_must_not_change_citizen_age():
+    """3. 'My husband is 42' must not change citizen age."""
+    extractor = ProfileExtractor(use_llm=False)
+    res1 = extractor.extract("My husband is 42.")
+    assert "age" not in res1.changes
+
+    # Even if agent specifically asked for age
+    res2 = extractor.extract(
+        text="My husband is 42.",
+        conversation_context=[{"speaker": "agent", "field": "age", "text": "What is your age?"}],
+    )
+    assert "age" not in res2.changes
+
+
+def test_regression_4_i_am_42_must_change_citizen_age():
+    """4. 'I am 42' must change citizen age through the existing confirmation flow."""
+    extractor = ProfileExtractor(use_llm=False)
+    res = extractor.extract("I am 42.")
+    assert res.changes.get("age") == 42
+    assert "age" in res.explicitly_stated_fields
+
+
+def test_regression_5_i_am_female_must_change_citizen_gender():
+    """5. 'I am female' must change citizen gender through the existing confirmation flow."""
+    extractor = ProfileExtractor(use_llm=False)
+    res = extractor.extract("I am female.")
+    assert res.changes.get("gender") == "female"
+    assert "gender" in res.explicitly_stated_fields
+

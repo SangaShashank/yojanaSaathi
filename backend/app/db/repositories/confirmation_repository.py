@@ -22,6 +22,15 @@ class ConfirmationRepository:
         raw_patch: Optional[Dict[str, Any]] = None,
         confirmation_type: str = "PROFILE_PATCH",
     ) -> HumanConfirmation:
+        existing = db.query(HumanConfirmation).filter(HumanConfirmation.id == confirmation_id).first()
+        if existing:
+            existing.proposed_changes = proposed_changes
+            existing.raw_patch = raw_patch or {}
+            existing.status = "PENDING"
+            db.commit()
+            db.refresh(existing)
+            return existing
+
         confirmation = HumanConfirmation(
             id=confirmation_id,
             case_id=case_id,

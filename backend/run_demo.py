@@ -14,6 +14,14 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# Ensure Windows terminal outputs UTF-8 cleanly
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -24,7 +32,7 @@ from backend.app.services.scheme_loader import load_all_schemes
 from backend.app.services.eligibility_engine import evaluate_all_schemes, evaluate_eligibility
 
 
-console = Console()
+console = Console(highlight=False)
 
 
 def format_status(status: CriterionStatus) -> str:
@@ -594,11 +602,248 @@ def run_demo():
     assert rb_readiness.verified_requirements == 0, "Isolation violation: document leaked into unlinked application!"
     console.print("[bold green]-> ISOLATION VERIFIED: PM-KISAN verification did not leak into Rythu Bharosa![/bold green]")
 
-    console.print("\n[bold green][SUCCESS] Phase 5 Documents & Readiness Demo Complete![/bold green]")
+    # Step 5.7: Real OCR for Scanned / Image Documents (Phase 5.1)
+    console.print("\n[bold yellow]==== STEP 5.7: Real OCR for Scanned / Image Documents (Phase 5.1) ====[/bold yellow]")
+    from backend.tests.test_ocr_pipeline import make_synthetic_image
 
+    # 1. Create clearly labeled synthetic scanned document
+    ocr_doc_text = (
+        "SYNTHETIC DEMO DOCUMENT - FOR TESTING ONLY\n"
+        "Name: Ravi Kumar\n"
+        "Land: 4.5 acres\n"
+        "District: Karimnagar\n"
+        "Survey Number: 108/A"
+    )
+    console.print("[dim]Generating synthetic scanned JPG document fixture...[/dim]")
+    ocr_jpg_bytes = make_synthetic_image(ocr_doc_text, img_format="JPEG", width=700, height=250)
+
+    # Reset Rythu Bharosa state profile land acres to 3.0 to test discrepancy
+    p5_state.profile["land_holding_acres"] = 3.0
+    p5_state.profile["land_acres"] = 3.0
+
+    # 2. Upload synthetic scanned document
+    ocr_up = doc_coord.upload_document(
+        state=p5_state,
+        application_id="app_rb_demo",
+        document_type="land_passbook",
+        filename="synthetic_scanned_passbook.jpg",
+        file_bytes=ocr_jpg_bytes,
+        mime_type="image/jpeg",
+    )
+    console.print(f"Uploaded Synthetic Document ID: [bold cyan]{ocr_up.document_id}[/bold cyan]")
+
+    # 3. Real OCR extraction & structured parsing
+    console.print("[dim]Executing REAL Tesseract OCR extraction on synthetic image...[/dim]")
+    ocr_proc_res = doc_coord.process_and_verify_document(p5_state, ocr_up.document_id, "app_rb_demo")
+    console.print(f"  * Extraction Method: [bold green]{ocr_proc_res.extraction_method}[/bold green]")
+    console.print(f"  * OCR Provider: [bold green]{ocr_proc_res.ocr_provider}[/bold green]")
+    console.print(f"  * Pages Processed: [cyan]{ocr_proc_res.pages_processed}[/cyan]")
+    console.print(f"  * Structured Fields Extracted: [cyan]{ocr_proc_res.extracted_data}[/cyan]")
+
+    # 4. Profile comparison & discrepancy detection
+    console.print(f"  * Discrepancies Detected: [bold red]{len(ocr_proc_res.discrepancies)}[/bold red]")
+    for d in ocr_proc_res.discrepancies:
+        console.print(f"    - Field [cyan]{d.field_name}[/cyan]: Profile=[yellow]{d.profile_value}[/yellow] vs OCR=[magenta]{d.document_value}[/magenta]")
+
+    rb_readiness_ocr = doc_coord.compute_readiness(p5_state, "app_rb_demo")
+    console.print(f"  * Readiness Status: [bold magenta]{rb_readiness_ocr.status}[/bold magenta] (No auto-rejection)")
+    assert rb_readiness_ocr.status == "HUMAN_VERIFICATION_REQUIRED"
+
+    # 5. Human discrepancy resolution via Phase 3 flow
+    if ocr_proc_res.discrepancies:
+        disc_item = ocr_proc_res.discrepancies[0]
+        disc_id = disc_item.discrepancy_id
+        console.print("\n[dim]Resolving discrepancy via Phase 3 human confirmation workflow (USE_DOCUMENT)...[/dim]")
+        res_ocr = doc_coord.resolve_discrepancy(
+            state=p5_state,
+            discrepancy_id=disc_id,
+            resolution="USE_DOCUMENT",
+        )
+        console.print(f"  * Resolution Status: [bold green]{res_ocr['status']}[/bold green]")
+        console.print(f"  * Confirmed Profile Land Acres Updated: [bold green]{p5_state.profile.get('land_holding_acres')}[/bold green]")
+
+        rb_final = doc_coord.compute_readiness(p5_state, "app_rb_demo")
+        console.print(f"  * Post-Resolution Readiness: [bold cyan]{rb_final.status}[/bold cyan] (Mismatches: {len(rb_final.mismatches)})")
+
+    console.print("\n[bold green][SUCCESS] Phase 5 & 5.1 Documents, Readiness & Real OCR Demo Complete![/bold green]")
+
+    # =========================================================================
+    # PHASE 8: MULTILINGUAL VOICE & AUDIO DEMO
+    # =========================================================================
+    console.print("\n" + "=" * 70)
+    console.print(
+        Panel.fit(
+            "[bold white]PHASE 8: MULTILINGUAL VOICE & AUDIO DEMO[/bold white]\n"
+            "[italic cyan]Alternate Speech Interface over Existing Yojana Saathi Pipeline[/italic cyan]\n"
+            "[dim]Audio -> STT (Groq Whisper) -> ProfileCoordinator -> AgentController -> Browser TTS (SpeechSynthesis)[/dim]",
+            border_style="magenta",
+        )
+    )
+
+    import os
+    import uuid
+    from backend.app.services.voice_service import VoiceService
+    from backend.app.integrations.groq import MockSpeechToTextProvider, GroqWhisperProvider
+    from backend.app.db.session import SessionLocal
+    from backend.app.db.repositories.case_repository import CaseRepository
+    from backend.app.db.services.state_persistence import load_case, persist_agent_state
+    from backend.tests.test_phase8_voice import create_synthetic_wav
+
+    db = SessionLocal()
+    try:
+        # Create dedicated case for Voice Demo
+        voice_case_id = f"CASE-VOICE-DEMO-{uuid.uuid4().hex[:6].upper()}"
+        CaseRepository.create_case(
+            db=db,
+            case_id=voice_case_id,
+            goal="Multilingual Voice Assistance Journey",
+            candidate_schemes=["pm_kisan_001", "ts_rythu_bharosa_001"],
+        )
+        sample_audio = create_synthetic_wav(duration_seconds=1.5)
+
+        # 8.1 Telugu Voice Input: Farmer statement
+        console.print("\n[bold yellow]==== STEP 8.1: Telugu Voice Interaction (Language = 'te') ====[/bold yellow]")
+        console.print("[cyan]Citizen speaks in Telugu:[/cyan] 'నేను తెలంగాణకు చెందిన రైతును మరియు నాకు మూడు ఎకరాల భూమి ఉంది.'")
+        console.print("[dim]Pipeline: Microphone Audio -> Groq Whisper STT -> Telugu Transcript -> Existing Profile Extractor...[/dim]")
+
+        voice_svc = VoiceService(
+            stt_provider=MockSpeechToTextProvider(
+                mock_transcript="నేను తెలంగాణకు చెందిన రైతును మరియు నాకు మూడు ఎకరాల భూమి ఉంది.",
+                language="te",
+                detected_language="te",
+            )
+        )
+        turn1 = voice_svc.process_voice_turn(
+            db=db,
+            case_id=voice_case_id,
+            audio_bytes=sample_audio,
+            filename="farmer_telugu.wav",
+            language="te",
+        )
+        console.print(f"  * STT Transcript: [bold white]\"{turn1.transcript}\"[/bold white]")
+        console.print(f"  * Detected Language: [cyan]{turn1.detected_language}[/cyan] (Selected: [cyan]{turn1.language}[/cyan])")
+        console.print(f"  * Confirmation Required: [bold yellow]{turn1.confirmation_required}[/bold yellow] (Human confirmation boundary intact!)")
+        console.print(f"  * Spoken Response (TTS Target te-IN): [bold green]\"{turn1.response_text}\"[/bold green]")
+        console.print(f"  * Browser TTS Locales: {turn1.tts_locales}")
+
+        # 8.2 Telugu Voice Confirmation
+        console.print("\n[bold yellow]==== STEP 8.2: Voice Confirmation in Telugu ====[/bold yellow]")
+        console.print("[cyan]Citizen speaks in Telugu:[/cyan] 'అవును' (Yes / Confirm)")
+        voice_svc.stt_provider = MockSpeechToTextProvider(mock_transcript="అవును", language="te")
+        turn2 = voice_svc.process_voice_turn(
+            db=db,
+            case_id=voice_case_id,
+            audio_bytes=sample_audio,
+            language="te",
+        )
+        console.print(f"  * Turn Status: [bold green]{turn2.status}[/bold green]")
+        console.print(f"  * Agent Action: [bold cyan]{turn2.agent_action}[/bold cyan]")
+        console.print(f"  * Agent Spoken Response: [bold green]\"{turn2.response_text}\"[/bold green]")
+
+        # 8.3 Modality & Language Switch to English
+        console.print("\n[bold yellow]==== STEP 8.3: Language Switch to English (Session Continuity) ====[/bold yellow]")
+        console.print("[cyan]Citizen switches language to English and speaks income:[/cyan] 'My annual family income is two lakh.'")
+        voice_svc.stt_provider = MockSpeechToTextProvider(
+            mock_transcript="My annual family income is two lakh.", language="en"
+        )
+        turn3 = voice_svc.process_voice_turn(
+            db=db,
+            case_id=voice_case_id,
+            audio_bytes=sample_audio,
+            language="en",
+        )
+        console.print(f"  * STT Transcript: [bold white]\"{turn3.transcript}\"[/bold white]")
+        console.print(f"  * Language Updated: [cyan]{turn3.language}[/cyan]")
+        console.print(f"  * Spoken Confirmation Prompt: [bold green]\"{turn3.response_text}\"[/bold green]")
+
+        # Confirm Turn 3 via voice
+        voice_svc.stt_provider = MockSpeechToTextProvider(mock_transcript="confirm", language="en")
+        turn3_conf = voice_svc.process_voice_turn(
+            db=db,
+            case_id=voice_case_id,
+            audio_bytes=sample_audio,
+            language="en",
+        )
+        console.print(f"  * Post-Confirmation Agent Next Action: [bold cyan]{turn3_conf.agent_action}[/bold cyan]")
+
+        # 8.4 Multi-Scheme Applications Status Query via Voice
+        console.print("\n[bold yellow]==== STEP 8.4: Voice Multi-Scheme Status Query ====[/bold yellow]")
+        # Setup two active applications on state
+        v_state = load_case(db, voice_case_id)
+        v_state.applications = {
+            "pm_kisan_001": {"status": "ACTIVE"},
+            "ts_rythu_bharosa_001": {"status": "PENDING_VERIFICATION"},
+        }
+        persist_agent_state(db, v_state)
+
+        console.print("[cyan]Citizen asks by voice:[/cyan] 'Show me the status of my farmer applications.'")
+        voice_svc.stt_provider = MockSpeechToTextProvider(
+            mock_transcript="Show me the status of my farmer applications.", language="en"
+        )
+        turn4 = voice_svc.process_voice_turn(
+            db=db,
+            case_id=voice_case_id,
+            audio_bytes=sample_audio,
+            language="en",
+        )
+        console.print(f"  * Spoken Multi-Scheme Summary: [bold green]\"{turn4.response_text}\"[/bold green]")
+        console.print("[bold green]-> Applications reported independently without merging or ranking![/bold green]")
+
+        # 8.5 Document Readiness Query via Voice
+        console.print("\n[bold yellow]==== STEP 8.5: Voice Document Readiness Query ====[/bold yellow]")
+        v_state = load_case(db, voice_case_id)
+        v_state.documents = [{"document_type": "land_record", "status": "VERIFIED"}]
+        persist_agent_state(db, v_state)
+
+        console.print("[cyan]Citizen asks by voice:[/cyan] 'Which document is missing?'")
+        voice_svc.stt_provider = MockSpeechToTextProvider(
+            mock_transcript="Which document is missing?", language="en"
+        )
+        turn5 = voice_svc.process_voice_turn(
+            db=db,
+            case_id=voice_case_id,
+            audio_bytes=sample_audio,
+            language="en",
+        )
+        console.print(f"  * Spoken Document Status: [bold green]\"{turn5.response_text}\"[/bold green]")
+
+        # 8.6 Rejection Recovery Query via Voice
+        console.print("\n[bold yellow]==== STEP 8.6: Voice Rejection Recovery Query ====[/bold yellow]")
+        console.print("[cyan]Citizen speaks by voice:[/cyan] 'My PM-KISAN application was rejected.'")
+        voice_svc.stt_provider = MockSpeechToTextProvider(
+            mock_transcript="My PM-KISAN application was rejected.", language="en"
+        )
+        turn6 = voice_svc.process_voice_turn(
+            db=db,
+            case_id=voice_case_id,
+            audio_bytes=sample_audio,
+            language="en",
+        )
+        console.print(f"  * Spoken Recovery Action Prompt: [bold green]\"{turn6.response_text}\"[/bold green]")
+        console.print(f"  * Action Dispatched: [bold cyan]{turn6.agent_action}[/bold cyan]")
+
+        # 8.7 Real Groq Whisper STT Live Demonstration
+        console.print("\n[bold yellow]==== STEP 8.7: Real Groq Whisper STT Live API Verification ====[/bold yellow]")
+        groq_api_key = os.environ.get("GROQ_API_KEY")
+        if groq_api_key:
+            real_stt = GroqWhisperProvider(api_key=groq_api_key)
+            console.print("[dim]Invoking live Groq Whisper API (whisper-large-v3) with audio fixture...[/dim]")
+            real_res = real_stt.transcribe(sample_audio, filename="live_sample.wav", language="en")
+            console.print(f"  * Live Groq Whisper Response: [bold green]\"{real_res.transcript}\"[/bold green]")
+            console.print(f"  * Provider: [bold green]{real_res.provider}[/bold green] | Duration: {real_res.duration_seconds}s")
+            console.print("[bold green]-> REAL GROQ STT API VERIFICATION SUCCESSFUL![/bold green]")
+        else:
+            console.print("[yellow]GROQ_API_KEY not configured in environment. Skipping live API call.[/yellow]")
+
+        console.print("\n[bold green][SUCCESS] Phase 8 Multilingual Voice & Audio Demo Complete![/bold green]")
+
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":
     run_demo()
+
+
 
 

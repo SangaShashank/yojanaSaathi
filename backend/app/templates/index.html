@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yojana Saathi — AI Welfare Access Assistant</title>
+  <meta name="description" content="Agentic AI welfare-access assistant for citizens, farmers, women, and CSC/VLE-assisted users across India. Multilingual support in English, Hindi, and Telugu.">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Styles -->
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="header-left">
+          <div class="brand-logo" id="brand-logo" role="button" tabindex="0" aria-label="Go to landing page">
+            YS
+          </div>
+          <div class="brand-title-wrap">
+            <h1 class="brand-name" id="ui-brand-name">Yojana Saathi</h1>
+            <p class="brand-tagline" id="ui-brand-tagline">AI Welfare-Access Assistant • Citizen &amp; CSC/VLE</p>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <!-- Active Case Pill -->
+          <div class="case-badge" id="case-status-badge" role="status" aria-live="polite">
+            <span class="status-indicator"></span>
+            <span id="case-badge-text">No Active Case</span>
+          </div>
+
+          <!-- Mode Switcher -->
+          <button class="mode-switch-btn" id="mode-toggle-btn" aria-label="Toggle Citizen or CSC/VLE mode">
+            <span class="mode-icon" id="mode-icon">👤</span>
+            <span id="mode-label">Citizen Mode</span>
+          </button>
+
+          <!-- Language Selector -->
+          <div class="lang-selector-wrap">
+            <label for="lang-select" class="sr-only">Select Language</label>
+            <select id="lang-select" class="lang-select" aria-label="Language selection">
+              <option value="en">English (EN)</option>
+              <option value="hi">हिन्दी (HI)</option>
+              <option value="te">తెలుగు (TE)</option>
+            </select>
+          </div>
+
+          <!-- Case Actions -->
+          <button class="btn btn-secondary btn-sm" id="btn-open-case-modal">Open Case</button>
+          <button class="btn btn-primary btn-sm" id="btn-new-case-modal">New Case</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- CSC/VLE Top Operator Bar (Visible in VLE mode) -->
+    <section class="vle-operator-bar" id="vle-operator-bar" style="display: none;" aria-label="CSC/VLE Operator Workspace">
+      <div class="vle-meta-item">
+        <span class="vle-label">OPERATOR CONTEXT:</span>
+        <span class="vle-val" id="vle-case-id">None</span>
+      </div>
+      <div class="vle-meta-item">
+        <span class="vle-label">STAGE:</span>
+        <span class="vle-val" id="vle-stage">INTAKE</span>
+      </div>
+      <div class="vle-meta-item">
+        <span class="vle-label">MISSING GAPS:</span>
+        <span class="vle-val" id="vle-gaps-count">0</span>
+      </div>
+      <div class="vle-meta-item">
+        <span class="vle-label">APPLICATIONS:</span>
+        <span class="vle-val" id="vle-apps-count">0</span>
+      </div>
+      <div class="vle-actions">
+        <button class="btn btn-ghost btn-sm" id="btn-view-audit-log">📜 Audit Log</button>
+        <button class="btn btn-ghost btn-sm" id="btn-refresh-state">🔄 Sync State</button>
+      </div>
+    </section>
+
+    <!-- Primary Navigation Bar -->
+    <nav class="app-nav" aria-label="Application workspaces">
+      <ul class="nav-list" role="tablist">
+        <li role="presentation">
+          <button class="nav-tab active" id="tab-landing" role="tab" aria-selected="true" aria-controls="view-landing" data-view="landing">
+            <span class="tab-icon">🏠</span>
+            <span class="tab-text" data-i18n="nav_home">Home</span>
+          </button>
+        </li>
+        <li role="presentation">
+          <button class="nav-tab" id="tab-chat" role="tab" aria-selected="false" aria-controls="view-chat" data-view="chat">
+            <span class="tab-icon">💬</span>
+            <span class="tab-text" data-i18n="nav_chat">Saathi Chat &amp; Voice</span>
+          </button>
+        </li>
+        <li role="presentation">
+          <button class="nav-tab" id="tab-profile" role="tab" aria-selected="false" aria-controls="view-profile" data-view="profile">
+            <span class="tab-icon">👤</span>
+            <span class="tab-text" data-i18n="nav_profile">Citizen Profile</span>
+          </button>
+        </li>
+        <li role="presentation">
+          <button class="nav-tab" id="tab-schemes" role="tab" aria-selected="false" aria-controls="view-schemes" data-view="schemes">
+            <span class="tab-icon">📋</span>
+            <span class="tab-text" data-i18n="nav_schemes">Scheme Discovery</span>
+          </button>
+        </li>
+        <li role="presentation">
+          <button class="nav-tab" id="tab-applications" role="tab" aria-selected="false" aria-controls="view-applications" data-view="applications">
+            <span class="tab-icon">📑</span>
+            <span class="tab-text" data-i18n="nav_applications">Applications</span>
+          </button>
+        </li>
+        <li role="presentation">
+          <button class="nav-tab" id="tab-documents" role="tab" aria-selected="false" aria-controls="view-documents" data-view="documents">
+            <span class="tab-icon">📁</span>
+            <span class="tab-text" data-i18n="nav_documents">Documents &amp; OCR</span>
+          </button>
+        </li>
+        <li role="presentation">
+          <button class="nav-tab" id="tab-readiness" role="tab" aria-selected="false" aria-controls="view-readiness" data-view="readiness">
+            <span class="tab-icon">⚖️</span>
+            <span class="tab-text" data-i18n="nav_readiness">Readiness</span>
+          </button>
+        </li>
+        <li role="presentation">
+          <button class="nav-tab" id="tab-handoff" role="tab" aria-selected="false" aria-controls="view-handoff" data-view="handoff">
+            <span class="tab-icon">🤝</span>
+            <span class="tab-text" data-i18n="nav_handoff">Pre-Submission &amp; Handoff</span>
+          </button>
+        </li>
+        <li role="presentation">
+          <button class="nav-tab" id="tab-recovery" role="tab" aria-selected="false" aria-controls="view-recovery" data-view="recovery">
+            <span class="tab-icon">🔄</span>
+            <span class="tab-text" data-i18n="nav_recovery">Rejection &amp; Recovery</span>
+          </button>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- Main Workspace Container -->
+    <main class="app-main" id="main-content">
+      
+      <!-- ======================================================== -->
+      <!-- VIEW: LANDING -->
+      <!-- ======================================================== -->
+      <section class="view-panel active" id="view-landing" role="tabpanel" aria-labelledby="tab-landing">
+        <div class="landing-hero">
+          <div class="hero-badge" data-i18n="hero_badge">✨ Agentic AI Welfare Access • Public Assistance</div>
+          <h2 class="hero-title" data-i18n="hero_title">Empowering Citizens &amp; CSC Operators with Clear Welfare Guidance</h2>
+          <p class="hero-description" data-i18n="hero_desc">
+            Yojana Saathi guides citizens, small farmers, women, and rural beneficiaries through government scheme eligibility, document verification, preparation readiness, and rejection recovery. Speak or type in English, Hindi, or Telugu.
+          </p>
+
+          <div class="official-disclaimer" role="note">
+            <span class="disclaimer-icon">⚠️</span>
+            <div class="disclaimer-text">
+              <strong data-i18n="disclaimer_heading">Supported Curated Schemes Only:</strong>
+              <span data-i18n="disclaimer_body">Yojana Saathi assists with a curated dataset of supported central and state welfare programs. It does not claim exhaustive national coverage and does not perform direct live government portal submissions.</span>
+            </div>
+          </div>
+
+          <div class="landing-actions-grid">
+            <div class="action-card" id="card-start-case" role="button" tabindex="0">
+              <div class="card-icon">🚀</div>
+              <h3 class="card-title" data-i18n="card_start_title">Start New Case</h3>
+              <p class="card-desc" data-i18n="card_start_desc">Begin an assistance session. Chat or speak naturally to identify eligible schemes and collect profile facts.</p>
+              <button class="btn btn-primary" id="btn-landing-start">Begin Citizen Session</button>
+            </div>
+
+            <div class="action-card" id="card-resume-case" role="button" tabindex="0">
+              <div class="card-icon">📂</div>
+              <h3 class="card-title" data-i18n="card_resume_title">Continue Existing Case</h3>
+              <p class="card-desc" data-i18n="card_resume_desc">Enter a Case ID to resume profile confirmation, document uploads, readiness evaluation, or recovery.</p>
+              <button class="btn btn-secondary" id="btn-landing-resume">Enter Case ID</button>
+            </div>
+
+            <div class="action-card" id="card-vle-mode" role="button" tabindex="0">
+              <div class="card-icon">🏢</div>
+              <h3 class="card-title" data-i18n="card_vle_title">CSC / VLE Operator Mode</h3>
+              <p class="card-desc" data-i18n="card_vle_desc">Dedicated high-efficiency interface for Village Level Entrepreneurs. Manage citizen dossiers, manual edits, and handoff packets.</p>
+              <button class="btn btn-ghost" id="btn-landing-vle">Switch to CSC Mode</button>
+            </div>
+          </div>
+
+          <!-- Feature Highlights -->
+          <div class="features-row">
+            <div class="feature-item">
+              <span class="feat-icon">🎙️</span>
+              <h4 data-i18n="feat_voice_title">Multilingual Voice</h4>
+              <p data-i18n="feat_voice_desc">Speak in Hindi, Telugu, or English with browser audio playback and typed fallback.</p>
+            </div>
+            <div class="feature-item">
+              <span class="feat-icon">🛡️</span>
+              <h4 data-i18n="feat_confirm_title">Human Confirmation</h4>
+              <p data-i18n="feat_confirm_desc">Extracted facts require your confirmation before deterministic eligibility checks.</p>
+            </div>
+            <div class="feature-item">
+              <span class="feat-icon">📑</span>
+              <h4 data-i18n="feat_multi_title">Independent Tracks</h4>
+              <p data-i18n="feat_multi_desc">Apply for multiple schemes in parallel with isolated document and recovery states.</p>
+            </div>
+            <div class="feature-item">
+              <span class="feat-icon">🤝</span>
+              <h4 data-i18n="feat_handoff_title">CSC/VLE Handoff</h4>
+              <p data-i18n="feat_handoff_desc">Generate official reference sheets and dossiers ready for verified physical submission.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- VIEW: CHAT & VOICE -->
+      <!-- ======================================================== -->
+      <section class="view-panel" id="view-chat" role="tabpanel" aria-labelledby="tab-chat">
+        <div class="chat-workspace">
+          <!-- Chat Messages Container -->
+          <div class="chat-messages-container" id="chat-messages" role="log" aria-live="polite" aria-label="Chat conversation history">
+            <div class="chat-message agent-msg">
+              <div class="msg-avatar">YS</div>
+              <div class="msg-content">
+                <div class="msg-sender">Saathi AI</div>
+                <div class="msg-text" data-i18n="welcome_chat_msg">
+                  Namaste! I am your Yojana Saathi welfare assistant. Please tell me about yourself, your occupation, land ownership, annual income, or welfare schemes you need help with. You can type or use the microphone button below.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active Question / Action Required Callout -->
+          <div class="active-question-card" id="chat-action-card" style="display: none;">
+            <div class="action-card-header">
+              <span class="action-card-icon">⚡</span>
+              <span class="action-card-title" id="chat-action-title">Action Required</span>
+            </div>
+            <div class="action-card-body" id="chat-action-body"></div>
+          </div>
+
+          <!-- Voice & Text Input Workspace -->
+          <div class="chat-input-bar">
+            <!-- Voice Panel -->
+            <div class="voice-controls-row">
+              <button class="mic-btn" id="btn-voice-mic" aria-label="Start voice recording">
+                <span class="mic-icon">🎙️</span>
+                <span class="mic-waves"></span>
+              </button>
+              <div class="voice-status-info">
+                <span class="voice-state-text" id="voice-state-label">Click mic to speak</span>
+                <span class="voice-timer" id="voice-timer" style="display: none;">00:00</span>
+              </div>
+              <div class="voice-actions">
+                <button class="btn btn-ghost btn-sm" id="btn-replay-tts" style="display: none;" title="Replay response voice">🔊 Replay</button>
+                <button class="btn btn-ghost btn-sm" id="btn-mute-tts" style="display: none;" title="Stop voice playback">⏹️ Stop</button>
+              </div>
+            </div>
+
+            <!-- Voice Transcript Review Bar (Shown after recording) -->
+            <div class="transcript-preview-bar" id="transcript-bar" style="display: none;">
+              <span class="transcript-label" data-i18n="transcript_label">Heard:</span>
+              <input type="text" class="transcript-input" id="transcript-edit-input" aria-label="Editable transcript">
+              <button class="btn btn-primary btn-sm" id="btn-send-transcript">Send</button>
+              <button class="btn btn-ghost btn-sm" id="btn-discard-transcript">Cancel</button>
+            </div>
+
+            <!-- Typed Text Input Fallback -->
+            <form class="text-input-form" id="chat-form">
+              <label for="chat-text-input" class="sr-only">Type message</label>
+              <textarea 
+                id="chat-text-input" 
+                class="chat-textarea" 
+                rows="2" 
+                placeholder="Type your message here... (e.g., 'I am a 32-year-old small farmer from Telangana with 2 acres of land')"
+                data-i18n-placeholder="chat_input_placeholder"
+              ></textarea>
+              <button type="submit" class="btn btn-primary send-btn" id="btn-chat-send" aria-label="Send message">
+                <span data-i18n="btn_send">Send</span> ➤
+              </button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- VIEW: PROFILE -->
+      <!-- ======================================================== -->
+      <section class="view-panel" id="view-profile" role="tabpanel" aria-labelledby="tab-profile">
+        <div class="profile-workspace">
+          <div class="workspace-header">
+            <div>
+              <h2 class="workspace-title" data-i18n="profile_title">Citizen Profile</h2>
+              <p class="workspace-subtitle" data-i18n="profile_subtitle">Confirmed attributes, unknown parameters, and pending proposed facts.</p>
+            </div>
+            <div class="workspace-actions">
+              <button class="btn btn-secondary btn-sm" id="btn-open-manual-edit">✏️ Manual Edit Field</button>
+            </div>
+          </div>
+
+          <!-- Pending Confirmation Card (Visible when backend has pending_confirmation) -->
+          <div class="pending-confirmation-banner" id="profile-pending-banner" style="display: none;">
+            <div class="banner-badge">⚠️ Human Confirmation Required</div>
+            <h3 class="banner-title" data-i18n="pending_heading">Proposed Profile Updates</h3>
+            <p class="banner-desc" data-i18n="pending_desc">Please review these facts extracted from your statements. Confirming will update your authoritative profile and re-evaluate scheme eligibility.</p>
+            <div class="pending-changes-grid" id="pending-changes-list"></div>
+            <div class="banner-btn-group">
+              <button class="btn btn-success" id="btn-confirm-profile">✓ Confirm These Facts</button>
+              <button class="btn btn-danger" id="btn-reject-profile">✗ Reject Proposed Changes</button>
+            </div>
+          </div>
+
+          <!-- Profile Cards Grid -->
+          <div class="profile-grid">
+            <!-- Confirmed Facts Card -->
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-header-title">
+                  <span class="status-dot green"></span>
+                  <span data-i18n="confirmed_facts_title">Authoritative Confirmed Facts</span>
+                </h3>
+                <span class="badge badge-success" id="confirmed-count-badge">0 Confirmed</span>
+              </div>
+              <div class="card-body">
+                <div class="facts-table-wrap">
+                  <table class="facts-table" id="confirmed-facts-table">
+                    <thead>
+                      <tr>
+                        <th>Field Name</th>
+                        <th>Confirmed Value</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="confirmed-facts-tbody">
+                      <tr><td colspan="4" class="empty-cell">No confirmed profile facts yet.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- Unknown Parameters Card -->
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-header-title">
+                  <span class="status-dot yellow"></span>
+                  <span data-i18n="unknown_facts_title">Unknown / Unspecified Parameters</span>
+                </h3>
+                <span class="badge badge-warning" id="unknown-count-badge">All Unknown</span>
+              </div>
+              <div class="card-body">
+                <p class="card-subtext" data-i18n="unknown_facts_desc">
+                  These fields have not been provided or confirmed. The eligibility engine strictly treats these as UNKNOWN (not 0, not false, and not assumed).
+                </p>
+                <div class="unknown-chips-wrap" id="unknown-fields-chips"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Natural Language Correction Box -->
+          <div class="card nl-correction-card">
+            <div class="card-header">
+              <h3 class="card-header-title">💬 Update Profile via Natural Language</h3>
+            </div>
+            <div class="card-body">
+              <form class="nl-form" id="nl-correction-form">
+                <input 
+                  type="text" 
+                  class="nl-input" 
+                  id="nl-correction-input" 
+                  placeholder="e.g., 'Actually my annual income is 180000 and I am in OBC category'"
+                >
+                <button type="submit" class="btn btn-secondary">Submit Fact</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- VIEW: SCHEME DISCOVERY -->
+      <!-- ======================================================== -->
+      <section class="view-panel" id="view-schemes" role="tabpanel" aria-labelledby="tab-schemes">
+        <div class="schemes-workspace">
+          <div class="workspace-header">
+            <div>
+              <h2 class="workspace-title" data-i18n="schemes_title">Supported Welfare Schemes</h2>
+              <p class="workspace-subtitle" data-i18n="schemes_subtitle">
+                All 13 supported schemes are evaluated deterministically. Schemes are displayed neutrally with no subjective scoring or ranking.
+              </p>
+            </div>
+            <div class="workspace-actions">
+              <button class="btn btn-primary" id="btn-evaluate-schemes">⚡ Evaluate All Schemes</button>
+              <button class="btn btn-success" id="btn-create-selected-apps" disabled>Create Applications (<span id="selected-schemes-count">0</span>)</button>
+            </div>
+          </div>
+
+          <!-- Canonical Notice -->
+          <div class="neutral-evaluation-notice">
+            <span class="notice-icon">ℹ️</span>
+            <span>
+              <strong>Rule of Neutrality:</strong> Schemes are evaluated strictly against confirmed profile facts. No scheme is promoted as "best" or given ranking weights. You can select one or multiple schemes to manage parallel application tracks.
+            </span>
+          </div>
+
+          <!-- Scheme Cards Grid -->
+          <div class="schemes-grid" id="schemes-cards-container">
+            <div class="empty-state">
+              <div class="empty-icon">📋</div>
+              <h3>No evaluations run yet</h3>
+              <p>Click "Evaluate All Schemes" to evaluate your confirmed profile against all supported welfare programs.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- VIEW: APPLICATIONS -->
+      <!-- ======================================================== -->
+      <section class="view-panel" id="view-applications" role="tabpanel" aria-labelledby="tab-applications">
+        <div class="applications-workspace">
+          <div class="workspace-header">
+            <div>
+              <h2 class="workspace-title" data-i18n="apps_title">Independent Application Tracks</h2>
+              <p class="workspace-subtitle" data-i18n="apps_subtitle">
+                Each selected scheme creates an isolated application with independent lifecycle, document verification, and recovery state.
+              </p>
+            </div>
+            <div class="workspace-actions">
+              <button class="btn btn-secondary btn-sm" id="btn-switch-scheme-eval">Add More Schemes</button>
+            </div>
+          </div>
+
+          <!-- Applications Track List -->
+          <div class="applications-layout">
+            <div class="apps-sidebar">
+              <h3 class="sidebar-title">Selected Schemes</h3>
+              <div class="apps-nav-list" id="apps-list-sidebar">
+                <div class="empty-sidebar">No active applications.</div>
+              </div>
+            </div>
+
+            <div class="app-detail-container" id="app-detail-container">
+              <div class="empty-state">
+                <div class="empty-icon">📑</div>
+                <h3>No application selected</h3>
+                <p>Select an application from the sidebar or select schemes from the Scheme Discovery tab.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- VIEW: DOCUMENTS & OCR -->
+      <!-- ======================================================== -->
+      <section class="view-panel" id="view-documents" role="tabpanel" aria-labelledby="tab-documents">
+        <div class="documents-workspace">
+          <div class="workspace-header">
+            <div>
+              <h2 class="workspace-title" data-i18n="docs_title">Document Requirements &amp; OCR</h2>
+              <p class="workspace-subtitle" data-i18n="docs_subtitle">
+                Upload required certificates and identity records. Real OCR text extraction and discrepancy checking without automatic rejection.
+              </p>
+            </div>
+            <div class="workspace-actions">
+              <select class="app-context-select" id="docs-app-selector" aria-label="Select Application">
+                <option value="">Select Application...</option>
+              </select>
+              <button class="btn btn-primary btn-sm" id="btn-upload-doc-modal">Upload Document</button>
+            </div>
+          </div>
+
+          <!-- Document Discrepancy Alert Banner (If discrepancy detected) -->
+          <div class="discrepancy-banner" id="doc-discrepancy-alert" style="display: none;">
+            <div class="alert-icon">⚠️</div>
+            <div class="alert-content">
+              <h4>Document Information Review Required</h4>
+              <p id="doc-discrepancy-text">Extracted document facts differ from your confirmed profile. This is NOT an automatic rejection. Review and resolve the discrepancy below.</p>
+            </div>
+          </div>
+
+          <!-- Documents Checklist & Uploaded Cards -->
+          <div class="documents-grid">
+            <!-- Scheme Document Requirements -->
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-header-title">Required Scheme Documents</h3>
+                <span class="badge badge-info" id="docs-req-count">0 Required</span>
+              </div>
+              <div class="card-body">
+                <div class="req-docs-list" id="req-docs-checklist">
+                  <div class="empty-notice">Select an active application above to view required documents.</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Uploaded Documents & OCR Facts -->
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-header-title">Uploaded Records &amp; OCR Facts</h3>
+                <span class="badge badge-neutral" id="docs-uploaded-count">0 Uploaded</span>
+              </div>
+              <div class="card-body">
+                <div class="uploaded-docs-list" id="uploaded-docs-container">
+                  <div class="empty-notice">No documents uploaded for this application yet.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- VIEW: READINESS -->
+      <!-- ======================================================== -->
+      <section class="view-panel" id="view-readiness" role="tabpanel" aria-labelledby="tab-readiness">
+        <div class="readiness-workspace">
+          <div class="workspace-header">
+            <div>
+              <h2 class="workspace-title" data-i18n="readiness_title">Application Readiness Check</h2>
+              <p class="workspace-subtitle" data-i18n="readiness_subtitle">
+                Systematic readiness audit for profile completeness, verified documents, and handoff prerequisites.
+              </p>
+            </div>
+            <div class="workspace-actions">
+              <select class="app-context-select" id="readiness-app-selector" aria-label="Select Application">
+                <option value="">Select Application...</option>
+              </select>
+              <button class="btn btn-secondary btn-sm" id="btn-recheck-readiness">🔄 Re-evaluate Readiness</button>
+            </div>
+          </div>
+
+          <!-- Readiness Overview Card -->
+          <div class="readiness-overview-card" id="readiness-overview-card">
+            <div class="readiness-status-badge" id="readiness-status-pill">STATUS: UNKNOWN</div>
+            <h3 class="readiness-summary-heading" id="readiness-summary-heading">Select an application to evaluate readiness</h3>
+            <p class="readiness-summary-desc" id="readiness-summary-desc">Readiness is computed deterministically from confirmed profile facts and verified documents.</p>
+
+            <div class="readiness-breakdown-grid">
+              <div class="breakdown-item">
+                <span class="item-label">Profile Readiness</span>
+                <span class="item-val" id="readiness-profile-stat">—</span>
+              </div>
+              <div class="breakdown-item">
+                <span class="item-label">Document Readiness</span>
+                <span class="item-val" id="readiness-doc-stat">—</span>
+              </div>
+              <div class="breakdown-item">
+                <span class="item-label">Critical Blockers</span>
+                <span class="item-val" id="readiness-blocker-stat">—</span>
+              </div>
+              <div class="breakdown-item">
+                <span class="item-label">Next Action</span>
+                <span class="item-val" id="readiness-action-stat">—</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Blockers & Warnings Lists -->
+          <div class="readiness-details-grid">
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-header-title">🛑 Hard Submission Blockers</h3>
+              </div>
+              <div class="card-body">
+                <ul class="blockers-list" id="readiness-blockers-list">
+                  <li class="empty-li">No blockers identified.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-header-title">⚠️ Advisory &amp; Missing Actions</h3>
+              </div>
+              <div class="card-body">
+                <ul class="warnings-list" id="readiness-warnings-list">
+                  <li class="empty-li">No advisories.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- VIEW: PRE-SUBMISSION & HANDOFF -->
+      <!-- ======================================================== -->
+      <section class="view-panel" id="view-handoff" role="tabpanel" aria-labelledby="tab-handoff">
+        <div class="handoff-workspace">
+          <div class="workspace-header">
+            <div>
+              <h2 class="workspace-title" data-i18n="handoff_title">Pre-Submission Review &amp; CSC/VLE Handoff</h2>
+              <p class="workspace-subtitle" data-i18n="handoff_subtitle">
+                Compile verified application dossiers and physical CSC reference sheets ready for official operator submission.
+              </p>
+            </div>
+            <div class="workspace-actions">
+              <select class="app-context-select" id="handoff-app-selector" aria-label="Select Application">
+                <option value="">Select Application...</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Prominent Legal Disclaimer -->
+          <div class="handoff-legal-banner" role="alert">
+            <div class="legal-badge">OFFICIAL DISCLAIMER</div>
+            <div class="legal-text">
+              <strong>NOT AN OFFICIAL GOVERNMENT FORM — PRE-SUBMISSION AID ONLY</strong>
+              <p>Yojana Saathi compiles verified facts, eligibility determinations, and document bundles to assist citizens at physical Common Service Centres (CSC) or government counters. Official registration numbers are issued solely by authorized government portals.</p>
+            </div>
+          </div>
+
+          <!-- Handoff Action Grid -->
+          <div class="handoff-actions-grid">
+            <div class="card handoff-action-card">
+              <div class="card-header">
+                <h3 class="card-header-title">📄 CSC/VLE Reference Sheet</h3>
+              </div>
+              <div class="card-body">
+                <p>One-page structured summary for CSC/VLE operators with field-by-field entry values and verified checklist.</p>
+                <button class="btn btn-secondary" id="btn-gen-ref-sheet">Generate Reference Sheet</button>
+              </div>
+            </div>
+
+            <div class="card handoff-action-card">
+              <div class="card-header">
+                <h3 class="card-header-title">📑 Comprehensive Application Dossier</h3>
+              </div>
+              <div class="card-body">
+                <p>Complete multi-page dossier containing citizen profile, scheme conditions audit, document verification logs, and readiness score.</p>
+                <button class="btn btn-secondary" id="btn-gen-dossier">Generate Dossier</button>
+              </div>
+            </div>
+
+            <div class="card handoff-action-card highlight">
+              <div class="card-header">
+                <h3 class="card-header-title">📦 Complete Handoff Package</h3>
+              </div>
+              <div class="card-body">
+                <p>Bundle the dossier, reference sheet, and document index into a permanent handoff package with PDF export.</p>
+                <div class="btn-group">
+                  <button class="btn btn-primary" id="btn-gen-package">Build Handoff Package</button>
+                  <button class="btn btn-ghost" id="btn-download-pdf" style="display: none;">⬇️ Download PDF</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Generated Artifact Preview Container -->
+          <div class="artifact-preview-card card" id="artifact-preview-container" style="display: none;">
+            <div class="card-header">
+              <h3 class="card-header-title" id="artifact-preview-title">Artifact Preview</h3>
+              <button class="btn btn-ghost btn-sm" id="btn-close-artifact">✕ Close</button>
+            </div>
+            <div class="card-body">
+              <div class="artifact-content-view" id="artifact-content-body"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- VIEW: REJECTION & RECOVERY -->
+      <!-- ======================================================== -->
+      <section class="view-panel" id="view-recovery" role="tabpanel" aria-labelledby="tab-recovery">
+        <div class="recovery-workspace">
+          <div class="workspace-header">
+            <div>
+              <h2 class="workspace-title" data-i18n="recovery_title">Rejection Evidence &amp; Stateful Recovery</h2>
+              <p class="workspace-subtitle" data-i18n="recovery_subtitle">
+                Bounded root-cause decoding and stateful recovery actions for rejected government welfare applications.
+              </p>
+            </div>
+            <div class="workspace-actions">
+              <select class="app-context-select" id="recovery-app-selector" aria-label="Select Application">
+                <option value="">Select Application...</option>
+              </select>
+              <button class="btn btn-danger btn-sm" id="btn-claim-rejection-modal">🚨 Report Rejection</button>
+            </div>
+          </div>
+
+          <!-- Recovery Status Card -->
+          <div class="recovery-status-card" id="recovery-status-card">
+            <div class="recovery-badge" id="recovery-state-badge">NO REJECTION RECORDED</div>
+            <h3 class="recovery-heading" id="recovery-heading">No active rejection event</h3>
+            <p class="recovery-desc" id="recovery-desc">If your application was rejected at a portal or CSC, report the rejection code or notice text to decode the root cause.</p>
+            
+            <!-- Bounded Decoder Result Box -->
+            <div class="decoded-root-cause" id="decoded-root-cause-box" style="display: none;">
+              <div class="decoder-label">DECODED ROOT CAUSE:</div>
+              <div class="decoder-category" id="decoded-category-val">—</div>
+              <div class="decoder-reason" id="decoded-reason-val">—</div>
+            </div>
+          </div>
+
+          <!-- Recovery Action Executor -->
+          <div class="card recovery-action-card" id="recovery-action-container" style="display: none;">
+            <div class="card-header">
+              <h3 class="card-header-title">🔧 Prescribed Recovery Actions</h3>
+            </div>
+            <div class="card-body">
+              <div class="recovery-steps-list" id="recovery-steps-list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Modals -->
+    <!-- Modal: New Case -->
+    <div class="modal-overlay" id="modal-new-case" role="dialog" aria-modal="true" aria-labelledby="modal-new-case-title" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title" id="modal-new-case-title">Start New Case</h3>
+          <button class="modal-close" data-close-modal="modal-new-case" aria-label="Close modal">✕</button>
+        </div>
+        <div class="modal-body">
+          <label for="new-case-goal" class="form-label">Case Goal / Description</label>
+          <input type="text" id="new-case-goal" class="form-input" value="Identify applicable welfare schemes and orchestrate readiness">
+          <p class="form-hint">A unique case ID will be generated and persisted in PostgreSQL.</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-close-modal="modal-new-case">Cancel</button>
+          <button class="btn btn-primary" id="btn-submit-new-case">Create Case</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Open Case -->
+    <div class="modal-overlay" id="modal-open-case" role="dialog" aria-modal="true" aria-labelledby="modal-open-case-title" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title" id="modal-open-case-title">Open Existing Case</h3>
+          <button class="modal-close" data-close-modal="modal-open-case" aria-label="Close modal">✕</button>
+        </div>
+        <div class="modal-body">
+          <label for="open-case-id" class="form-label">Case Identifier (UUID)</label>
+          <input type="text" id="open-case-id" class="form-input" placeholder="e.g. 1a2b3c4d-...">
+          <p class="form-hint">Loads authoritative profile, evaluations, and applications from PostgreSQL.</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-close-modal="modal-open-case">Cancel</button>
+          <button class="btn btn-primary" id="btn-submit-open-case">Load Case</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Manual Edit Profile Field -->
+    <div class="modal-overlay" id="modal-manual-edit-profile" role="dialog" aria-modal="true" aria-labelledby="modal-manual-edit-title" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title" id="modal-manual-edit-title">Manual Field Edit</h3>
+          <button class="modal-close" data-close-modal="modal-manual-edit-profile" aria-label="Close modal">✕</button>
+        </div>
+        <div class="modal-body">
+          <label for="edit-field-select" class="form-label">Profile Field</label>
+          <select id="edit-field-select" class="form-select"></select>
+
+          <div id="edit-field-question" class="field-question-hint"></div>
+
+          <label for="edit-field-val" class="form-label" style="margin-top: 1rem;">Field Value</label>
+          <div id="edit-val-container">
+            <input type="text" id="edit-field-val" class="form-input" placeholder="Enter value">
+          </div>
+
+          <div class="checkbox-row" style="margin-top: 1rem;">
+            <input type="checkbox" id="edit-auto-confirm" checked>
+            <label for="edit-auto-confirm">Confirm immediately (bypasses staging &amp; invalidates stale eligibility)</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-close-modal="modal-manual-edit-profile">Cancel</button>
+          <button class="btn btn-primary" id="btn-submit-manual-edit">Save Field</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Upload Document -->
+    <div class="modal-overlay" id="modal-upload-doc" role="dialog" aria-modal="true" aria-labelledby="modal-upload-doc-title" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title" id="modal-upload-doc-title">Upload Document for Verification</h3>
+          <button class="modal-close" data-close-modal="modal-upload-doc" aria-label="Close modal">✕</button>
+        </div>
+        <div class="modal-body">
+          <label for="upload-doc-type" class="form-label">Document Type</label>
+          <select id="upload-doc-type" class="form-select">
+            <option value="aadhaar">Aadhaar Card (aadhaar)</option>
+            <option value="land_passbook">Land Ownership Record / Passbook (land_passbook)</option>
+            <option value="income_certificate">Income Certificate (income_certificate)</option>
+            <option value="caste_certificate">Caste Certificate (caste_certificate)</option>
+            <option value="bank_passbook">Bank Account Passbook (bank_passbook)</option>
+            <option value="ration_card">Ration Card (ration_card)</option>
+            <option value="disability_certificate">Disability Certificate (disability_certificate)</option>
+          </select>
+
+          <label for="upload-doc-file" class="form-label" style="margin-top: 1rem;">Select File (PNG, JPG, PDF)</label>
+          <input type="file" id="upload-doc-file" class="form-input" accept=".pdf,.png,.jpg,.jpeg">
+          <p class="form-hint">Images and scanned PDFs will be processed with Real OCR text extraction.</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-close-modal="modal-upload-doc">Cancel</button>
+          <button class="btn btn-primary" id="btn-submit-upload-doc">Upload &amp; Extract</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Report Rejection -->
+    <div class="modal-overlay" id="modal-claim-rejection" role="dialog" aria-modal="true" aria-labelledby="modal-rejection-title" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title" id="modal-rejection-title">Report Application Rejection</h3>
+          <button class="modal-close" data-close-modal="modal-claim-rejection" aria-label="Close modal">✕</button>
+        </div>
+        <div class="modal-body">
+          <label for="rejection-code-input" class="form-label">Rejection Code (if known)</label>
+          <input type="text" id="rejection-code-input" class="form-input" placeholder="e.g. ERR_NPCI_INACTIVE or REJ_04">
+
+          <label for="rejection-notice-text" class="form-label" style="margin-top: 1rem;">Official Rejection Notice Text</label>
+          <textarea id="rejection-notice-text" class="form-textarea" rows="3" placeholder="Paste exact text from government portal or SMS notification"></textarea>
+          <p class="form-hint">Bounded decoder will match against 5 supported recovery categories.</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-close-modal="modal-claim-rejection">Cancel</button>
+          <button class="btn btn-danger" id="btn-submit-rejection-claim">Submit &amp; Decode</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: VLE Audit Event Log -->
+    <div class="modal-overlay" id="modal-activity-log" role="dialog" aria-modal="true" aria-labelledby="modal-audit-title" style="display: none;">
+      <div class="modal-card modal-lg">
+        <div class="modal-header">
+          <h3 class="modal-title" id="modal-audit-title">Case Activity Audit Log</h3>
+          <button class="modal-close" data-close-modal="modal-activity-log" aria-label="Close modal">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="audit-log-table-wrap">
+            <table class="facts-table" id="audit-log-table">
+              <thead>
+                <tr>
+                  <th>Iter</th>
+                  <th>Stage</th>
+                  <th>Action</th>
+                  <th>Reason Code</th>
+                  <th>Field</th>
+                  <th>Timestamp</th>
+                </tr>
+              </thead>
+              <tbody id="audit-log-tbody">
+                <tr><td colspan="6" class="empty-cell">No audit events recorded.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-close-modal="modal-activity-log">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toast-container" role="status" aria-live="polite"></div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

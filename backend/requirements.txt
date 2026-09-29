@@ -1,0 +1,8 @@
+pypdf
+pymupdf
+pytesseract
+Pillow
+reportlab
+pdfplumber
+aiofiles
+groq

@@ -80,8 +80,11 @@ class DocumentExtractionResult(BaseModel):
     fields: Dict[str, Any] = Field(default_factory=dict)
     unresolved_fields: List[str] = Field(default_factory=list)
     confidence_flags: List[str] = Field(default_factory=list)
-    extraction_status: str = "SUCCESS"  # SUCCESS, FAILED, UNREADABLE, INVALID
+    extraction_status: str = "SUCCESS"  # SUCCESS, FAILED, UNREADABLE, INVALID, PROCESSING_LIMIT_EXCEEDED
     raw_text: Optional[str] = None
+    extraction_method: Optional[str] = "NATIVE_PDF"  # NATIVE_PDF, OCR
+    ocr_provider: Optional[str] = None
+    pages_processed: Optional[int] = 1
 
 
 class DocumentDiscrepancyItem(BaseModel):
@@ -125,6 +128,9 @@ class DocumentItemResponse(BaseModel):
     extraction_status: str
     verification_status: str
     discrepancies: List[DocumentDiscrepancyItem] = Field(default_factory=list)
+    extraction_method: Optional[str] = None
+    ocr_provider: Optional[str] = None
+    pages_processed: Optional[int] = None
 
 
 class ApplicationReadiness(BaseModel):

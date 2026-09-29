@@ -25,6 +25,8 @@ DOCUMENT_VERIFICATION_FIELDS_MAP: Dict[str, List[str]] = {
     "land_record": ["name", "land_holding_acres", "district", "state"],
     "land_records": ["name", "land_holding_acres", "district", "state"],
     "land_record_or_tenancy_proof": ["name", "land_holding_acres", "district", "state"],
+    "land_passbook": ["name", "land_holding_acres", "district", "state"],
+    "pattadar_passbook": ["name", "land_holding_acres", "district", "state"],
     "bank_passbook": ["name"],
     "farmer_id": ["name", "farmer_id_status"],
     "income_certificate": ["name", "annual_income_inr"],
@@ -186,7 +188,9 @@ def generate_application_checklist(
             elif v_status == "MISMATCH" or d_status == "MISMATCH":
                 item_status = DocumentRequirementStatus.MISMATCH.value
             elif d_status in ["INVALID", "UNREADABLE"]:
-                item_status = DocumentRequirementStatus.INVALID.value
+                # Preserve UNREADABLE so downstream readiness and Phase 6 can
+                # give the operator a precise, non-fabricated blocking reason.
+                item_status = d_status
             elif d_status == "PROCESSING":
                 item_status = DocumentRequirementStatus.PROCESSING.value
             elif d_status == "UPLOADED":

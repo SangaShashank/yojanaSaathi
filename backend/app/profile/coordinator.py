@@ -54,9 +54,20 @@ class ProfileCoordinator:
 
         # 1. Direct confirmation routing if pending confirmation is active
         if state.pending_confirmation:
-            if lower_msg in ["confirm", "yes", "i confirm", "correct", "confirm changes", "looks good", "ok", "proceed"]:
+            confirm_keywords = [
+                "confirm", "yes", "yes, confirm", "yes confirm", "i confirm", "correct", "confirm changes",
+                "looks good", "ok", "proceed", "yes please", "yeah", "yep",
+                "हाँ", "हां", "सही है", "पुष्टि करें", "पुष्टि", "ठीक है",
+                "అవును", "ధృవీకరించండి", "సరే", "కరెక్ట్", "అవును ధృవీకరించు", "సరైనది",
+            ]
+            reject_keywords = [
+                "reject", "no", "cancel", "discard", "reject changes",
+                "नहीं", "ना", "रद्द करें", "गलत है",
+                "కాదు", "రద్దు చేయండి", "తప్పు", "వద్దు",
+            ]
+            if lower_msg in confirm_keywords:
                 return self.confirm_pending_profile(state)
-            elif lower_msg in ["reject", "no", "cancel", "discard", "reject changes"]:
+            elif lower_msg in reject_keywords:
                 return self.reject_pending_profile(state)
 
         # 2. Extract structured profile facts using extractor

@@ -247,3 +247,46 @@ class ActionValidator:
             return False, "READY_FOR_HANDOFF requires an active application."
         return True, None
 
+    @classmethod
+    def _validate_verify_pre_submission(cls, action: AgentAction, state: AgentState) -> Tuple[bool, Optional[str]]:
+        app_id = action.field or action.arguments.get("application_id") or state.active_application_id
+        if not app_id:
+            return False, "VERIFY_PRE_SUBMISSION requires an active application."
+        return True, None
+
+    @classmethod
+    def _validate_generate_reference_sheet(cls, action: AgentAction, state: AgentState) -> Tuple[bool, Optional[str]]:
+        return cls._validate_verify_pre_submission(action, state)
+
+    @classmethod
+    def _validate_generate_dossier(cls, action: AgentAction, state: AgentState) -> Tuple[bool, Optional[str]]:
+        return cls._validate_verify_pre_submission(action, state)
+
+    @classmethod
+    def _validate_generate_handoff_package(cls, action: AgentAction, state: AgentState) -> Tuple[bool, Optional[str]]:
+        return cls._validate_verify_pre_submission(action, state)
+
+    @classmethod
+    def _validate_request_rejection_evidence(cls, action: AgentAction, state: AgentState) -> Tuple[bool, Optional[str]]:
+        return cls._validate_verify_pre_submission(action, state)
+
+    @classmethod
+    def _validate_decode_rejection(cls, action: AgentAction, state: AgentState) -> Tuple[bool, Optional[str]]:
+        if not action.arguments.get("rejection_event_id"):
+            return False, "DECODE_REJECTION requires a validated rejection event/evidence reference."
+        return cls._validate_verify_pre_submission(action, state)
+
+    @classmethod
+    def _validate_request_recovery_document(cls, action: AgentAction, state: AgentState) -> Tuple[bool, Optional[str]]:
+        return cls._validate_decode_rejection(action, state)
+
+    @classmethod
+    def _validate_resolve_rejection(cls, action: AgentAction, state: AgentState) -> Tuple[bool, Optional[str]]:
+        if not action.arguments.get("recovery_evidence"):
+            return False, "RESOLVE_REJECTION requires recovery evidence; an unsupported claim is insufficient."
+        return cls._validate_decode_rejection(action, state)
+
+    @classmethod
+    def _validate_reassess_application(cls, action: AgentAction, state: AgentState) -> Tuple[bool, Optional[str]]:
+        return cls._validate_resolve_rejection(action, state)
+

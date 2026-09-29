@@ -68,6 +68,9 @@ class AgentState(BaseModel):
     active_scheme_id: Optional[str] = None
     active_application_id: Optional[str] = None
 
+    # Language preference (Phase 8 Multilingual Voice & Audio: 'en', 'hi', 'te')
+    language_preference: str = "en"
+
     # Information gaps & conditions
     missing_information: List[str] = Field(default_factory=list)
     scheme_missing_information: Dict[str, List[str]] = Field(default_factory=dict)
